@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { logoutUser } from "../lib/firebase";
+import { useAuthContext } from "../auth/AuthContext";
 import { getMe, type UserProfile } from "../services/api";
 
 function Icon({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ const navItems = [
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuthContext();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,8 +42,8 @@ export function DashboardPage() {
     navigate("/login");
   };
 
-  const name = profile?.full_name || "Alex Morgan";
-  const firstName = name.split(" ")[0];
+  const name = profile?.full_name || user?.displayName || user?.email?.split("@")[0] || "Student";
+  const firstName = name.trim().split(/\s+/)[0] || "Student";
 
   return (
     <div className="dashboard-shell">
@@ -70,7 +72,7 @@ export function DashboardPage() {
           <div className="dashboard-crest">U</div>
           <div><div className="dashboard-sidebar-title">UniVote</div><div className="dashboard-sidebar-subtitle">Academic Portal</div></div>
         </div>
-        <button className="sidebar-cta" type="button" onClick={() => navigate("#elections")}><Icon>how_to_vote</Icon>Cast Vote Now<Icon>arrow_forward</Icon></button>
+        <a className="sidebar-cta" href="#elections"><Icon>how_to_vote</Icon>Cast Vote Now<Icon>arrow_forward</Icon></a>
         <div className="dashboard-nav">
           {navItems.map(([icon, label, href]) => <a key={label} className={`dashboard-nav-item ${label === "Dashboard" ? "active" : ""}`} href={href}><Icon>{icon}</Icon><span>{label}</span>{label === "Elections" && <span className="nav-count">2</span>}</a>)}
         </div>
