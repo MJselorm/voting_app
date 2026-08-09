@@ -7,6 +7,7 @@
 
 /* ── CSS Custom Properties ─────────────────────────────────── */
 :root {
+  /* Primary & Accent Colors */
   --color-primary: #032b37;
   --color-primary-hover: #021e27;
   --color-primary-light: #064557;
@@ -14,20 +15,24 @@
   --color-accent-blue: #2563eb;
   --color-accent-sky: #e0f2fe;
 
+  /* Backgrounds */
   --color-bg: #f8fafc;
   --color-surface: #ffffff;
   --color-surface-muted: #f1f5f9;
   --color-surface-subtle: #f8fafc;
 
+  /* Borders & Dividers */
   --color-border: #e2e8f0;
   --color-border-hover: #cbd5e1;
   --color-border-focus: #032b37;
 
+  /* Text Colors */
   --color-text-title: #0f172a;
   --color-text-body: #334155;
   --color-text-secondary: #64748b;
   --color-text-muted: #94a3b8;
 
+  /* Status Colors */
   --color-error: #ef4444;
   --color-error-bg: #fef2f2;
   --color-error-border: #fecaca;
@@ -36,18 +41,22 @@
   --color-warning: #f59e0b;
   --color-warning-bg: #fffbeb;
 
+  /* Layout Constants */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
   --radius-xl: 20px;
 
+  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-card: 0 10px 25px -5px rgba(15, 23, 42, 0.04), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
   --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
 
+  /* Transitions */
   --transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Reset & Base ──────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -76,6 +85,7 @@ body {
   min-height: 100vh;
 }
 
+/* ── Top Header Navigation ──────────────────────────────────── */
 .app-header {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
@@ -126,6 +136,7 @@ body {
   background: var(--color-surface-muted);
 }
 
+/* ── Page Wrappers ─────────────────────────────────────────── */
 .page-container {
   flex: 1;
   display: flex;
@@ -147,6 +158,7 @@ body {
   margin: 0 auto;
 }
 
+/* ── Split Card Container (Instagram Style: Left Brand+Picture, Right Auth) ── */
 .auth-card-split {
   width: 100%;
   max-width: 1120px;
@@ -239,6 +251,7 @@ body {
   }
 }
 
+/* ── Signup Split Layout ──────────────────────────────────── */
 .signup-shell {
   flex: 1;
   display: flex;
@@ -464,6 +477,7 @@ body {
   }
 }
 
+/* ── Decorative Card Illustration (Login) ──────────────────── */
 .login-banner-card {
   width: 100%;
   height: 180px;
@@ -511,6 +525,7 @@ body {
   background: #032b37;
 }
 
+/* ── Typography & Headers ──────────────────────────────────── */
 .auth-header {
   text-align: center;
   margin-bottom: 1.75rem;
@@ -530,6 +545,7 @@ body {
   line-height: 1.45;
 }
 
+/* ── Callout Box (Info & Security) ─────────────────────────── */
 .info-callout {
   background: var(--color-surface-muted);
   border-left: 4px solid var(--color-primary);
@@ -577,6 +593,7 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Form Controls & Inputs with Icons ──────────────────────── */
 .form-group {
   margin-bottom: 1.25rem;
 }
@@ -673,6 +690,7 @@ body {
   font-weight: 500;
 }
 
+/* ── Password Strength & Checklist ─────────────────────────── */
 .password-strength-container {
   margin-top: 0.5rem;
 }
@@ -755,6 +773,7 @@ body {
   color: white;
 }
 
+/* ── Checkbox Controls ─────────────────────────────────────── */
 .form-checkbox-group {
   display: flex;
   align-items: flex-start;
@@ -774,6 +793,7 @@ body {
   border-radius: 4px;
 }
 
+/* ── Buttons & Links ───────────────────────────────────────── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -868,6 +888,7 @@ body {
   text-decoration: underline;
 }
 
+/* ── Alert Banners ─────────────────────────────────────────── */
 .alert {
   padding: 0.75rem 1rem;
   border-radius: var(--radius-md);
@@ -884,6 +905,7 @@ body {
   color: var(--color-error);
 }
 
+/* ── Verify Email Layout ────────────────────────────────────── */
 .verify-icon-container {
   width: 80px;
   height: 80px;
@@ -912,6 +934,7 @@ body {
   color: var(--color-primary);
 }
 
+/* ── Dashboard Layout ──────────────────────────────────────── */
 .dashboard-shell {
   min-height: 100vh;
   background:
@@ -1495,11 +1518,48 @@ body {
   }
 
   .dashboard-main {
-    margin-left: 0;
+  margin-left: 0;
   }
-}
+  .dashboard-main-new { padding: 1.5rem 1rem 2rem; }
+  .dashboard-topbar-new { align-items: flex-start; }
+  .dashboard-topbar-new h1 { font-size: 1.75rem; }
+  .dashboard-welcome { align-items: flex-start; flex-direction: column; margin-bottom: 1.5rem; }
+  .dashboard-welcome .sidebar-cta { width: 100%; }
+  .dashboard-metrics-new, .dashboard-grid-new { grid-template-columns: 1fr; }
+  .dashboard-account-card, .dashboard-nav-label, .sidebar-help, .dashboard-sidebar-new .sidebar-logout { display: none; }
+  }
 
+  /* Dashboard refresh */
 .dashboard-shell { background: var(--color-bg); }
+.dashboard-shell-new { min-height: 100vh; }
+.dashboard-sidebar-new { background: var(--color-surface); border-right: 1px solid var(--color-border); }
+.dashboard-main-new { margin-left: 18rem; padding: 2.5rem 3.5rem 4rem; }
+.dashboard-topbar-new { position: static; height: auto; padding: 0; border: 0; background: transparent; }
+.dashboard-topbar-new h1 { margin-top: .25rem; font-size: clamp(2rem, 3vw, 3rem); }
+.dashboard-kicker { margin: 0; color: var(--color-primary); font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.dashboard-welcome { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: .5rem 0 2.25rem; color: var(--color-text-secondary); }
+.dashboard-nav-label { margin: 2rem 0 .65rem; color: var(--color-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.dashboard-account-card { display: flex; align-items: center; gap: .7rem; margin-top: 2rem; padding: .75rem; border: 1px solid var(--color-border); border-radius: .8rem; background: var(--color-bg); }
+.dashboard-account-card strong, .dashboard-account-card span { display: block; overflow: hidden; max-width: 8rem; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-account-card strong { color: var(--color-text-title); font-size: .78rem; }
+.dashboard-account-card span { margin-top: .2rem; color: var(--color-text-muted); font-size: .68rem; }
+.dashboard-account-card > .material-symbols-outlined { margin-left: auto; color: var(--color-text-muted); font-size: 1rem; }
+.dashboard-account-avatar { display: grid; flex: 0 0 auto; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: .65rem; background: var(--color-primary); color: white; font-weight: 800; }
+.sidebar-help { margin-top: auto; padding: 1rem; border-radius: .9rem; background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg)); }
+.sidebar-help > .material-symbols-outlined { color: var(--color-primary); }
+.sidebar-help strong, .sidebar-help p { display: block; }
+.sidebar-help strong { margin-top: .65rem; font-size: .8rem; }
+.sidebar-help p { margin: .25rem 0 .75rem; color: var(--color-text-muted); font-size: .7rem; line-height: 1.45; }
+.sidebar-help a { display: inline-flex; align-items: center; gap: .25rem; color: var(--color-primary); font-size: .72rem; font-weight: 800; text-decoration: none; }
+.dashboard-metrics-new { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dashboard-grid-new { grid-template-columns: minmax(0, 1.6fr) minmax(18rem, .8fr); }
+.panel-featured { padding: 1.7rem; }
+.panel-subtitle { margin-top: .35rem; color: var(--color-text-muted); font-size: .8rem; }
+.election-card-new { padding: 1.35rem; }
+.election-description { margin: .45rem 0 0; color: var(--color-text-secondary); font-size: .78rem; }
+.election-button { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
+
+
 .dashboard-topbar { height: 4.5rem; background: color-mix(in srgb, var(--color-bg) 88%, transparent); border-bottom-color: var(--color-border); }
 .dashboard-brand-mark em { color: var(--color-secondary); font-style: normal; font-weight: 500; }
 .dashboard-topbar-search input { height: 2.75rem; border-radius: 0.7rem; background: var(--color-surface-muted); border-color: var(--color-border); }
@@ -1621,6 +1681,7 @@ body {
   text-decoration: none;
 }
 
+/* ── Dashboard Cards ───────────────────────────────────────── */
 .election-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -1710,6 +1771,7 @@ body {
   margin-bottom: 1.5rem;
 }
 
+/* ── Footer ────────────────────────────────────────────────── */
 .app-footer {
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
@@ -1755,6 +1817,7 @@ body {
   color: var(--color-text-secondary);
 }
 
+/* ── Loading Spinner ───────────────────────────────────────── */
 .spinner {
   width: 20px;
   height: 20px;
@@ -1771,341 +1834,4 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-
-.material-symbols-outlined {
-  font-family: "Material Symbols Outlined";
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-feature-settings: "liga";
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ============================================================
-   Dashboard Polish Pass — fixes crowding, styles previously
-   unstyled classes, refines spacing/typography/hierarchy.
-   Append this to the end of index.css.
-   ============================================================ */
-
-/* ── Layout breathing room ──────────────────────────────────── */
-.dashboard-main-new {
-  padding: 2.5rem 2.75rem 4rem;
-  max-width: 1400px;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.dashboard-topbar-new {
-  position: static;
-  height: auto;
-  padding: 0;
-  background: transparent;
-  backdrop-filter: none;
-  border-bottom: none;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.dashboard-kicker {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-accent-teal);
-  margin-bottom: 0.5rem;
-}
-
-.dashboard-topbar-new h1 {
-  font-size: clamp(1.75rem, 3vw, 2.5rem);
-  font-weight: 800;
-  color: var(--color-text-title);
-  letter-spacing: -0.03em;
-}
-
-.dashboard-topbar-new .dashboard-topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.icon-chip {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 999px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition);
-}
-
-.icon-chip:hover {
-  border-color: var(--color-border-hover);
-  transform: translateY(-1px);
-}
-
-.avatar-chip {
-  width: 2.5rem;
-  height: 2.5rem;
-  font-size: 0.95rem;
-  box-shadow: 0 4px 12px rgba(3, 43, 55, 0.25);
-  transition: var(--transition);
-}
-
-.avatar-chip:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(3, 43, 55, 0.32);
-}
-
-/* ── Welcome strip ──────────────────────────────────────────── */
-.dashboard-welcome {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.dashboard-welcome p {
-  color: var(--color-text-secondary);
-  font-size: 1rem;
-}
-
-.dashboard-welcome .sidebar-cta {
-  width: auto;
-  padding: 0.75rem 1.25rem;
-  font-size: 0.875rem;
-  box-shadow: 0 4px 14px rgba(3, 43, 55, 0.2);
-}
-
-.dashboard-welcome .sidebar-cta:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(3, 43, 55, 0.26);
-}
-
-/* ── Metrics & grid spacing ─────────────────────────────────── */
-.dashboard-metrics-new {
-  gap: 1.25rem;
-}
-
-.dashboard-grid-new {
-  gap: 1.5rem;
-}
-
-.dashboard-column {
-  gap: 1.5rem;
-}
-
-.metric-card {
-  transition: var(--transition);
-}
-
-.metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-/* ── Panels ─────────────────────────────────────────────────── */
-.panel-subtitle {
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  margin-top: 0.35rem;
-  max-width: 32rem;
-}
-
-.panel-featured {
-  border-top: 3px solid var(--color-primary);
-}
-
-.election-description {
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
-  line-height: 1.5;
-  margin-bottom: 0.75rem;
-}
-
-.election-card-new {
-  transition: var(--transition);
-}
-
-.election-card-new:hover {
-  border-color: var(--color-border-hover);
-  box-shadow: var(--shadow-sm);
-}
-
-/* ── Sidebar: account card ──────────────────────────────────── */
-.dashboard-sidebar-new {
-  gap: 1.25rem;
-}
-
-.dashboard-account-card {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.dashboard-account-card:hover {
-  border-color: var(--color-border-hover);
-}
-
-.dashboard-account-avatar {
-  flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 50%;
-  background: var(--color-primary);
-  color: white;
-  font-weight: 700;
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.dashboard-account-card > div:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-
-.dashboard-account-card strong {
-  font-size: 0.875rem;
-  color: var(--color-text-title);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.dashboard-account-card span {
-  font-size: 0.72rem;
-  color: var(--color-text-secondary);
-}
-
-.dashboard-account-card .material-symbols-outlined {
-  color: var(--color-text-muted);
-  font-size: 20px;
-  flex-shrink: 0;
-}
-
-/* ── Sidebar: nav ───────────────────────────────────────────── */
-.dashboard-nav-label {
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-  padding: 0 0.5rem;
-  margin-top: 0.25rem;
-}
-
-.dashboard-nav-item {
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 0.7rem 0.85rem;
-  transition: var(--transition);
-}
-
-.dashboard-nav-item .material-symbols-outlined {
-  font-size: 20px;
-}
-
-/* ── Sidebar: help callout ──────────────────────────────────── */
-.sidebar-help {
-  background: var(--color-surface-muted);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-top: auto;
-}
-
-.sidebar-help .material-symbols-outlined {
-  color: var(--color-primary);
-  font-size: 22px;
-  margin-bottom: 0.15rem;
-}
-
-.sidebar-help strong {
-  font-size: 0.85rem;
-  color: var(--color-text-title);
-}
-
-.sidebar-help p {
-  font-size: 0.78rem;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-}
-
-.sidebar-help a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  text-decoration: none;
-  margin-top: 0.15rem;
-}
-
-.sidebar-help a:hover {
-  text-decoration: underline;
-}
-
-.sidebar-help + .sidebar-logout {
-  margin-top: 0.5rem;
-}
-
-/* ── Focus states for accessibility ─────────────────────────── */
-.dashboard-nav-item:focus-visible,
-.icon-chip:focus-visible,
-.avatar-chip:focus-visible,
-.dashboard-account-card:focus-visible,
-.btn:focus-visible,
-.sidebar-cta:focus-visible,
-a:focus-visible,
-button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* ── Reduced motion ─────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition-duration: 0.001ms !important;
-    animation-duration: 0.001ms !important;
-  }
-}
-
-@media (max-width: 900px) {
-  .dashboard-main-new {
-    padding: 1.5rem 1.25rem 3rem;
-  }
-
-  .dashboard-welcome {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }

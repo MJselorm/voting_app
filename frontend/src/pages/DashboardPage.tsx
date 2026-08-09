@@ -1,11 +1,38 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { logoutUser } from "../lib/firebase";
 import { useAuthContext } from "../auth/AuthContext";
 import { getMe, type UserProfile } from "../services/api";
 
 function Icon({ children }: { children: ReactNode }) {
-  return <span className="material-symbols-outlined">{children}</span>;
+  // Decorative icons should not be announced by screen readers; the
+  // adjacent text label already carries the meaning.
+  return (
+    <span className="material-symbols-outlined" aria-hidden="true">
+      {children}
+    </span>
+  );
+}
+
+// Visually-hidden helper for text that should reach screen readers only.
+function VisuallyHidden({ children }: { children: ReactNode }) {
+  return (
+    <span
+      style={{
+        position: "absolute",
+        width: 1,
+        height: 1,
+        padding: 0,
+        margin: -1,
+        overflow: "hidden",
+        clip: "rect(0, 0, 0, 0)",
+        whiteSpace: "nowrap",
+        border: 0,
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 const navItems = [
@@ -16,11 +43,397 @@ const navItems = [
   ["help_outline", "Support", "#support"],
 ] as const;
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+// Sidebar has no dependency on profile-loading state, so it's memoized to
+// avoid re-rendering while the dashboard's data fetch is in flight.
+const Sidebar = memo(function Sidebar({
+  name,
+  firstName,
+  onLogout,
+}: {
+  name: string;
+  firstName: string;
+  onLogout: () => void;
+}) {
+  return (
+    <aside className="dashboard-sidebar dashboard-sidebar-new">
+      <div className="dashboard-sidebar-brand">
+        <div className="dashboard-crest" aria-hidden="true">U</div>
+        <div>
+          <div className="dashboard-sidebar-title">UniVote</div>
+          <div className="dashboard-sidebar-subtitle">Student voting portal</div>
+        </div>
+      </div>
+
+      <div className="dashboard-account-card">
+        <div className="dashboard-account-avatar" aria-hidden="true">
+          {firstName.charAt(0)}
+        </div>
+        <div>
+          <strong>{name}</strong>
+          <span>Verified student</span>
+        </div>
+        <Icon>expand_more</Icon>
+      </div>
+
+      <p className="dashboard-nav-label">Workspace</p>
+      <nav className="dashboard-nav" aria-label="Dashboard navigation">
+        {navItems.map(([icon, label, href]) => {
+          const isActive = label === "Dashboard";
+          return (
+            <a
+              key={label}
+              className={`dashboard-nav-item ${isActive ? "active" : ""}`}
+              href={href}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <Icon>{icon}</Icon>
+              <span>{label}</span>
+              {label === "Elections" && (
+                <span className="nav-count">
+                  2<VisuallyHidden> open elections</VisuallyHidden>
+                </span>
+              )}
+            </a>
+          );
+        })}
+      </nav>
+
+      <div className="sidebar-help">
+        <Icon>support_agent</Icon>
+        <strong>Need help?</strong>
+        <p>Our election support team is here.</p>
+        <a href="#support">
+          Contact support <Icon>arrow_forward</Icon>
+        </a>
+      </div>
+
+      <button className="sidebar-logout" onClick={onLogout} type="button">
+        <Icon>logout</Icon>Log out
+      </button>
+    </aside>
+  );
+});
+
+function Topbar({
+  firstName,
+  greeting,
+  onProfileClick,
+}: {
+  firstName: string;
+  greeting: string;
+  onProfileClick: () => void;
+}) {
+  return (
+    <header className="dashboard-topbar dashboard-topbar-new">
+      <div>
+        <p className="dashboard-kicker">Student dashboard</p>
+        <h1>
+          {greeting}, {firstName}.
+        </h1>
+      </div>
+      <div className="dashboard-topbar-actions">
+        <button type="button" className="icon-chip has-notification" aria-label="Notifications">
+          <Icon>notifications</Icon>
+          <span className="notification-dot" aria-hidden="true" />
+        </button>
+        <button type="button" className="icon-chip" aria-label="Settings">
+          <Icon>settings</Icon>
+        </button>
+        <button
+          type="button"
+          className="avatar-chip"
+          aria-label={`${firstName}'s profile`}
+          onClick={onProfileClick}
+        >
+          {firstName.charAt(0)}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function MetricsSection() {
+  return (
+    <section className="dashboard-metrics dashboard-metrics-new" aria-label="Voting overview">
+      <article className="metric-card metric-card-featured">
+        <div className="metric-top">
+          <div className="metric-icon metric-icon-primary">
+            <Icon>ballot</Icon>
+          </div>
+          <span className="metric-pill">Open now</span>
+        </div>
+        <h2>2</h2>
+        <p>Active elections</p>
+        <a className="metric-link" href="#elections">
+          Browse elections <Icon>arrow_forward</Icon>
+        </a>
+      </article>
+
+      <article className="metric-card">
+        <div className="metric-top">
+          <div className="metric-icon metric-icon-secondary">
+            <Icon>check_circle</Icon>
+          </div>
+          <span className="metric-trend">This semester</span>
+        </div>
+        <h2>1</h2>
+        <p>Vote cast</p>
+        <a className="metric-link" href="#votes">
+          View history <Icon>arrow_forward</Icon>
+        </a>
+      </article>
+
+      <article className="metric-card metric-card-accent">
+        <div className="metric-top">
+          <div className="metric-icon metric-icon-neutral">
+            <Icon>verified_user</Icon>
+          </div>
+          <span className="metric-pill metric-pill-verified">
+            <span className="metric-pill-dot" aria-hidden="true" />
+            Ready
+          </span>
+        </div>
+        <h2>100%</h2>
+        <p>Profile complete</p>
+        <a className="metric-link" href="/profile">
+          Review profile <Icon>arrow_forward</Icon>
+        </a>
+      </article>
+    </section>
+  );
+}
+
+type ElectionStatus = "ongoing" | "upcoming";
+
+interface Election {
+  id: string;
+  title: string;
+  icon: string;
+  iconClassName?: string;
+  status: ElectionStatus;
+  statusLabel: string;
+  description: string;
+  dateLabel: string;
+  audienceLabel: string;
+  participation: number; // 0-100, only meaningful for ongoing elections
+  participationLabel: string;
+  ctaLabel: string;
+  ctaClassName: string;
+}
+
+const elections: Election[] = [
+  {
+    id: "cs-department",
+    title: "Computer Science Department",
+    icon: "computer",
+    status: "ongoing",
+    statusLabel: "Ongoing",
+    description: "Choose representatives for the department committee.",
+    dateLabel: "Ends Oct 25",
+    audienceLabel: "CS undergrads",
+    participation: 68,
+    participationLabel: "68% participation so far",
+    ctaLabel: "Vote now",
+    ctaClassName: "btn btn-primary election-button",
+  },
+  {
+    id: "src-university",
+    title: "SRC University Election",
+    icon: "account_balance",
+    iconClassName: "election-icon-sky",
+    status: "upcoming",
+    statusLabel: "Upcoming",
+    description: "Meet the candidates shaping the next student council.",
+    dateLabel: "Opens Nov 1",
+    audienceLabel: "All students",
+    participation: 12,
+    participationLabel: "Voting opens in 12 days",
+    ctaLabel: "Explore",
+    ctaClassName: "btn btn-secondary election-button",
+  },
+];
+
+function ElectionCard({ election }: { election: Election }) {
+  const isOngoing = election.status === "ongoing";
+  return (
+    <article className="election-card election-card-new">
+      <div className={`election-icon ${election.iconClassName ?? ""}`}>
+        <Icon>{election.icon}</Icon>
+      </div>
+      <div className="election-body">
+        <div className="election-row">
+          <h4>{election.title}</h4>
+          <span className={`status-chip ${election.status}`}>{election.statusLabel}</span>
+        </div>
+        <p className="election-description">{election.description}</p>
+        <div className="election-meta">
+          <span>
+            <Icon>event</Icon> {election.dateLabel}
+          </span>
+          <span>
+            <Icon>group</Icon> {election.audienceLabel}
+          </span>
+        </div>
+        <div
+          className={`election-progress ${isOngoing ? "" : "muted"}`}
+          role="progressbar"
+          aria-valuenow={election.participation}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={isOngoing ? "Participation so far" : "Time until voting opens"}
+        >
+          <span style={{ width: `${election.participation}%` }} />
+        </div>
+        <small>{election.participationLabel}</small>
+      </div>
+      <button type="button" className={election.ctaClassName}>
+        {election.ctaLabel} <Icon>arrow_forward</Icon>
+      </button>
+    </article>
+  );
+}
+
+function ElectionsPanel() {
+  return (
+    <section className="panel panel-featured" id="elections">
+      <div className="panel-head">
+        <div>
+          <p className="eyebrow">Your next decision</p>
+          <h3>Open elections</h3>
+          <p className="panel-subtitle">Make your voice count before the deadlines.</p>
+        </div>
+        <a className="panel-link" href="#elections">
+          View all <Icon>arrow_forward</Icon>
+        </a>
+      </div>
+      <div className="election-list">
+        {elections.map((election) => (
+          <ElectionCard key={election.id} election={election} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PromoPanel() {
+  return (
+    <section className="promo-card promo-card-primary">
+      <div className="promo-copy">
+        <span className="promo-kicker">Student leadership</span>
+        <h3>Have a voice beyond the ballot.</h3>
+        <p>Discover ways to nominate a peer, join a committee, or support campus change.</p>
+      </div>
+      <button type="button" className="promo-button">
+        Explore opportunities <Icon>arrow_forward</Icon>
+      </button>
+    </section>
+  );
+}
+
+interface ActivityItem {
+  id: string;
+  isActive: boolean;
+  time: string;
+  title: string;
+  description: string;
+  hasReceipt?: boolean;
+}
+
+const activityItems: ActivityItem[] = [
+  {
+    id: "vote-cast",
+    isActive: true,
+    time: "Today · 10:42 AM",
+    title: "Vote successfully cast",
+    description: "Your Library Committee ballot was securely recorded.",
+    hasReceipt: true,
+  },
+  {
+    id: "profile-verified",
+    isActive: false,
+    time: "Yesterday",
+    title: "Profile verified",
+    description: "Your student identity is ready for secure voting.",
+  },
+  {
+    id: "system-update",
+    isActive: false,
+    time: "Oct 12",
+    title: "System update",
+    description: "Security improvements were applied to the voting ledger.",
+  },
+];
+
+function ActivityPanel() {
+  return (
+    <section className="panel" id="votes">
+      <div className="panel-head">
+        <div>
+          <p className="eyebrow">Your account</p>
+          <h3>Recent activity</h3>
+        </div>
+        <button type="button" className="panel-more" aria-label="More activity">
+          <Icon>more_horiz</Icon>
+        </button>
+      </div>
+      <div className="activity-list">
+        {activityItems.map((item) => (
+          <div className="activity-item" key={item.id}>
+            <span className={`activity-dot ${item.isActive ? "active" : ""}`} aria-hidden="true" />
+            <p className="activity-time">{item.time}</p>
+            <h4>
+              {item.title}
+              {item.isActive && <VisuallyHidden> (recent)</VisuallyHidden>}
+            </h4>
+            <p>{item.description}</p>
+            {item.hasReceipt && (
+              <button type="button" className="link-chip">
+                <Icon>receipt_long</Icon>View receipt
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <button type="button" className="panel-link">
+        View full history <Icon>arrow_forward</Icon>
+      </button>
+    </section>
+  );
+}
+
+function SecurityPanel() {
+  return (
+    <section className="panel panel-dashed" id="support">
+      <div className="security-head">
+        <div className="security-icon">
+          <Icon>security</Icon>
+        </div>
+        <div>
+          <p className="eyebrow">Private by design</p>
+          <h3>Your vote is protected</h3>
+        </div>
+      </div>
+      <p>Every ballot is encrypted, anonymous, and independently verifiable from the moment you submit it.</p>
+      <a href="#support" className="learn-link">
+        Learn about security <Icon>arrow_forward</Icon>
+      </a>
+    </section>
+  );
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +441,10 @@ export function DashboardPage() {
       .then((data) => {
         if (!cancelled) setProfile(data);
       })
-      .catch((err) => console.error("Failed to load profile:", err))
+      .catch((err) => {
+        console.error("Failed to load profile:", err);
+        if (!cancelled) setLoadError(true);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -44,66 +460,47 @@ export function DashboardPage() {
 
   const name = profile?.full_name || user?.displayName || user?.email?.split("@")[0] || "Student";
   const firstName = name.trim().split(/\s+/)[0] || "Student";
+  const greeting = useMemo(() => getGreeting(), []);
 
   return (
-    <div className="dashboard-shell">
-      <nav className="dashboard-topbar" aria-label="Dashboard utilities">
-        <div className="dashboard-topbar-brand">
-          <span className="dashboard-brand-mark">UniVote <em>Scholar</em></span>
-        </div>
-        <label className="dashboard-topbar-search">
-          <Icon>search</Icon>
-          <input aria-label="Search dashboard" placeholder="Search elections, candidates..." />
-          <kbd>⌘ K</kbd>
-        </label>
-        <div className="dashboard-topbar-actions">
-          <button type="button" className="icon-chip has-notification" aria-label="Notifications">
-            <Icon>notifications</Icon><span className="notification-dot" />
-          </button>
-          <button type="button" className="icon-chip" aria-label="Settings"><Icon>settings</Icon></button>
-          <button type="button" className="avatar-chip" aria-label={`${firstName}'s profile`} onClick={() => navigate("/profile")}>
-            {firstName.charAt(0)}
-          </button>
-        </div>
-      </nav>
+    <div className="dashboard-shell dashboard-shell-new">
+      <Sidebar name={name} firstName={firstName} onLogout={handleLogout} />
 
-      <aside className="dashboard-sidebar">
-        <div className="dashboard-sidebar-brand">
-          <div className="dashboard-crest">U</div>
-          <div><div className="dashboard-sidebar-title">UniVote</div><div className="dashboard-sidebar-subtitle">Academic Portal</div></div>
-        </div>
-        <a className="sidebar-cta" href="#elections"><Icon>how_to_vote</Icon>Cast Vote Now<Icon>arrow_forward</Icon></a>
-        <div className="dashboard-nav">
-          {navItems.map(([icon, label, href]) => <a key={label} className={`dashboard-nav-item ${label === "Dashboard" ? "active" : ""}`} href={href}><Icon>{icon}</Icon><span>{label}</span>{label === "Elections" && <span className="nav-count">2</span>}</a>)}
-        </div>
-        <div className="sidebar-footer"><div className="sidebar-footer-line" /><button className="sidebar-logout" onClick={handleLogout} type="button"><Icon>logout</Icon>Log Out</button></div>
-      </aside>
+      <main className="dashboard-main dashboard-main-new">
+        <Topbar firstName={firstName} greeting={greeting} onProfileClick={() => navigate("/profile")} />
 
-      <main className="dashboard-main">
-        <header className="dashboard-hero">
-          <div><p className="eyebrow">Student overview · October 2024</p><h1>Good morning, {firstName}.</h1><p>Stay informed, make your voice count, and help shape your campus.</p></div>
-          <div className="hero-status"><span className="status-pulse" />Account verified</div>
-        </header>
-
-        <section className="dashboard-metrics" aria-label="Voting overview">
-          <article className="metric-card metric-card-featured"><div className="metric-top"><div className="metric-icon metric-icon-primary"><Icon>how_to_vote</Icon></div><span className="metric-pill">Action needed</span></div><h2>2</h2><p>Active elections</p><span className="metric-link">Your voice matters <Icon>arrow_forward</Icon></span></article>
-          <article className="metric-card"><div className="metric-top"><div className="metric-icon metric-icon-secondary"><Icon>check_circle</Icon></div><span className="metric-trend">+1 this month</span></div><h2>1</h2><p>Votes cast</p><span className="metric-link">View voting history <Icon>arrow_forward</Icon></span></article>
-          <article className="metric-card metric-card-accent"><div className="metric-top"><div className="metric-icon metric-icon-neutral"><Icon>verified_user</Icon></div><span className="metric-pill metric-pill-verified"><span className="metric-pill-dot" />Verified</span></div><h2>Ready</h2><p>Identity confirmed</p><span className="metric-link">Manage your profile <Icon>arrow_forward</Icon></span></article>
-        </section>
-
-        <section className="dashboard-grid">
-          <div className="dashboard-column dashboard-column-main">
-            <section className="panel" id="elections"><div className="panel-head"><div><p className="eyebrow">Make an impact</p><h3>Active elections</h3></div><a href="#elections">View all <Icon>arrow_forward</Icon></a></div><div className="election-list">
-              <article className="election-card"><div className="election-icon"><Icon>computer</Icon></div><div className="election-body"><div className="election-row"><h4>Computer Science Department</h4><span className="status-chip ongoing">Ongoing</span></div><div className="election-meta"><span><Icon>calendar_today</Icon> Ends Oct 25</span><span><Icon>group</Icon> CS undergrads</span></div><div className="election-progress"><span style={{ width: "68%" }} /></div><small>68% of eligible students have participated</small></div><button type="button" className="btn btn-primary election-button">View details</button></article>
-              <article className="election-card"><div className="election-icon election-icon-sky"><Icon>account_balance</Icon></div><div className="election-body"><div className="election-row"><h4>SRC University Election</h4><span className="status-chip upcoming">Upcoming</span></div><div className="election-meta"><span><Icon>calendar_today</Icon> Starts Nov 1</span><span><Icon>group</Icon> All students</span></div><div className="election-progress muted"><span style={{ width: "12%" }} /></div><small>Voting opens in 12 days</small></div><button type="button" className="btn btn-secondary election-button">View details</button></article>
-            </div></section>
-            <section className="promo-card promo-card-primary"><div className="promo-copy"><span className="promo-kicker">Call for nominations</span><h3>Celebrate campus leaders.</h3><p>Recognize peers who make a difference through exceptional leadership and service.</p></div><button type="button" className="promo-button">Nominate a peer <Icon>arrow_forward</Icon></button></section>
+        <div className="dashboard-welcome">
+          <div>
+            <p>Here is what is happening across your campus today.</p>
           </div>
+          <a className="sidebar-cta" href="#elections">
+            <Icon>how_to_vote</Icon>Cast a vote <Icon>arrow_forward</Icon>
+          </a>
+        </div>
 
-          <div className="dashboard-column dashboard-column-side"><section className="panel" id="votes"><div className="panel-head"><div><p className="eyebrow">Your account</p><h3>Recent activity</h3></div><button type="button" className="panel-more" aria-label="More activity"><Icon>more_horiz</Icon></button></div><div className="activity-list"><div className="activity-item"><span className="activity-dot active" /><p className="activity-time">Today · 10:42 AM</p><h4>Vote successfully cast</h4><p>Your ballot for Library Committee was securely recorded.</p><button type="button" className="link-chip"><Icon>receipt_long</Icon>View receipt</button></div><div className="activity-item"><span className="activity-dot" /><p className="activity-time">Yesterday</p><h4>Profile verified</h4><p>Identity verification completed via student portal.</p></div><div className="activity-item"><span className="activity-dot" /><p className="activity-time">Oct 12</p><h4>System update</h4><p>Security patch applied to the voting ledger.</p></div></div><button type="button" className="panel-link">View full history <Icon>arrow_forward</Icon></button></section>
-          <section className="panel panel-dashed" id="support"><div className="security-head"><div className="security-icon"><Icon>security</Icon></div><div><p className="eyebrow">Built for trust</p><h3>Secure voting</h3></div></div><p>Every election is protected with end-to-end encryption so your vote stays anonymous and tamper-proof.</p><a href="#support" className="learn-link">Learn about our security <Icon>arrow_forward</Icon></a></section></div>
+        <MetricsSection />
+
+        <section className="dashboard-grid dashboard-grid-new">
+          <div className="dashboard-column dashboard-column-main">
+            <ElectionsPanel />
+            <PromoPanel />
+          </div>
+          <div className="dashboard-column dashboard-column-side">
+            <ActivityPanel />
+            <SecurityPanel />
+          </div>
         </section>
-        {loading && <div className="dashboard-loading" role="status">Loading your profile...</div>}
+
+        {loading && (
+          <div className="dashboard-loading" role="status">
+            Loading your profile...
+          </div>
+        )}
+        {!loading && loadError && (
+          <div className="dashboard-loading" role="status">
+            We couldn't load your latest profile details. Some information above may be out of date.
+          </div>
+        )}
       </main>
     </div>
   );
