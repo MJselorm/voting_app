@@ -1521,6 +1521,48 @@ body {
   }
 }
 
+/* Dashboard refresh */
+.dashboard-shell { background: var(--color-bg); }
+.dashboard-topbar { height: 4.5rem; background: color-mix(in srgb, var(--color-bg) 88%, transparent); border-bottom-color: var(--color-border); }
+.dashboard-brand-mark em { color: var(--color-secondary); font-style: normal; font-weight: 500; }
+.dashboard-topbar-search input { height: 2.75rem; border-radius: 0.7rem; background: var(--color-surface-muted); border-color: var(--color-border); }
+.dashboard-topbar-search kbd { position: absolute; right: .75rem; color: var(--color-text-muted); font-size: .7rem; border: 1px solid var(--color-border); padding: .15rem .35rem; border-radius: .3rem; }
+.icon-chip:hover, .avatar-chip:hover, .dashboard-nav-item:not(.active):hover { background: var(--color-surface-muted); color: var(--color-primary); }
+.dashboard-main { max-width: 1440px; padding: 6.5rem 2.5rem 3rem; }
+.dashboard-hero { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
+.dashboard-hero h1 { font-size: clamp(2.2rem, 4vw, 3.4rem); margin-top: .35rem; }
+.eyebrow { margin: 0; color: var(--color-primary); font-size: .7rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.hero-status { display: inline-flex; align-items: center; gap: .5rem; padding: .55rem .8rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text-secondary); font-size: .8rem; font-weight: 700; }
+.status-pulse { width: .45rem; height: .45rem; border-radius: 50%; background: var(--color-primary); box-shadow: 0 0 0 .25rem color-mix(in srgb, var(--color-primary) 14%, transparent); }
+.dashboard-metrics { gap: 1.25rem; }
+.metric-card, .panel, .promo-card { border-color: var(--color-border); box-shadow: 0 12px 32px rgba(15, 23, 42, .05); }
+.metric-card { padding: 1.5rem; min-height: 12.5rem; }
+.metric-card-featured { border-top: 3px solid var(--color-primary); }
+.metric-card h2 { font-size: 3rem; margin-top: .35rem; }
+.metric-link, .metric-trend { display: inline-flex; align-items: center; gap: .35rem; margin-top: 1rem; color: var(--color-primary); font-size: .78rem; font-weight: 800; }
+.metric-trend { margin-top: 0; color: var(--color-secondary); font-size: .7rem; }
+.panel { padding: 1.5rem; }
+.panel-head { align-items: end; }
+.panel-head a, .panel-link, .learn-link { display: inline-flex; align-items: center; gap: .35rem; font-size: .8rem; }
+.panel-more { border: 0; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.election-card { align-items: start; padding: 1.15rem; background: var(--color-bg); border-color: var(--color-border); }
+.election-icon { background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface)); }
+.election-icon-sky { color: var(--color-secondary); background: color-mix(in srgb, var(--color-secondary) 12%, var(--color-surface)); }
+.election-body small { display: block; margin-top: .45rem; color: var(--color-text-muted); font-size: .72rem; }
+.election-progress { height: .35rem; margin-top: .85rem; overflow: hidden; border-radius: 999px; background: var(--color-border); }
+.election-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-primary); }
+.election-progress.muted span { background: var(--color-secondary); }
+.promo-card { min-height: 10rem; padding: 1.8rem; }
+.promo-card-primary { background: linear-gradient(115deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, var(--color-secondary))); }
+.promo-button { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; cursor: pointer; }
+.promo-button:hover { transform: translateY(-1px); }
+.sidebar-footer { margin-top: auto; }
+.sidebar-footer-line { height: 1px; margin-bottom: .5rem; background: var(--color-border); }
+.sidebar-logout { width: 100%; }
+.nav-count { margin-left: auto; min-width: 1.35rem; padding: .1rem .35rem; border-radius: 999px; background: var(--color-surface-muted); color: var(--color-text-muted); font-size: .7rem; text-align: center; }
+.dashboard-nav-item.active .nav-count { background: rgba(255,255,255,.18); color: white; }
+.security-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: .7rem; background: color-mix(in srgb, var(--color-secondary) 14%, var(--color-surface)); }
+
 @media (max-width: 900px) {
   .dashboard-topbar {
     position: sticky;
