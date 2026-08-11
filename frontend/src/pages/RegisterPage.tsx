@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import { registerUser, sendVerificationEmail } from "../lib/firebase";
-import { syncUser } from "../services/api";
+import { syncUser, type ApiError } from "../services/api";
 
 function validateForm(fields: {
   fullName: string;
@@ -46,6 +46,14 @@ function parseFirebaseError(error: FirebaseError): string {
   }
 }
 
+function parseApiError(error: unknown): string {
+  if (typeof error === "object" && error !== null && "detail" in error) {
+    const apiError = error as ApiError;
+    return apiError.detail || "We couldn't complete registration because the backend verification failed.";
+  }
+  return "We couldn't complete registration because the backend verification failed.";
+}
+
 export function RegisterPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -81,19 +89,18 @@ export function RegisterPage() {
       const credential = await registerUser(form.email, form.password);
       const firebaseUser = credential.user;
 
-      await sendVerificationEmail(firebaseUser);
-
       try {
         await syncUser({
-          firebase_uid: firebaseUser.uid,
           full_name: form.fullName.trim(),
           email: form.email.trim(),
           student_id: form.studentId.trim() || undefined,
         });
       } catch (syncErr) {
-        console.error("Backend sync failed after registration:", syncErr);
+        setGlobalError(parseApiError(syncErr));
+        return;
       }
 
+      await sendVerificationEmail(firebaseUser);
       navigate("/verify-email");
     } catch (err) {
       if (err instanceof FirebaseError) setGlobalError(parseFirebaseError(err));

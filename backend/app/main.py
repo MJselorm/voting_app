@@ -11,7 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.firebase_admin import initialize_firebase
+from app.api.eligibility import router as eligibility_router
 from app.api.auth import router as auth_router
+from app.api.students import router as students_router
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -60,6 +62,8 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth_router)
+app.include_router(eligibility_router)
+app.include_router(students_router)
 
 
 # ── Health Check ─────────────────────────────────────────────────────────────

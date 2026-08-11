@@ -19,6 +19,27 @@ logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+async def get_verified_firebase_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict:
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide a valid Firebase ID token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = credentials.credentials
+    try:
+        return await verify_firebase_token(token)
+    except firebase_auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired. Please log in again.", headers={"WWW-Authenticate": "Bearer"})
+    except firebase_auth.RevokedIdTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked. Please log in again.", headers={"WWW-Authenticate": "Bearer"})
+    except (firebase_auth.InvalidIdTokenError, Exception) as exc:
+        logger.warning("Token verification failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token.", headers={"WWW-Authenticate": "Bearer"})
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
@@ -40,40 +61,7 @@ async def get_current_user(
         - Firebase UID not found in PostgreSQL → 401
         - Inactive account → 403
     """
-    # ── Step 1: Ensure token is present ──────────────────────────────────
-    if credentials is None or not credentials.credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Provide a valid Firebase ID token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = credentials.credentials
-
-    # ── Step 2: Verify with Firebase Admin SDK ────────────────────────────
-    try:
-        decoded_token = await verify_firebase_token(token)
-    except firebase_auth.ExpiredIdTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired. Please log in again.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except firebase_auth.RevokedIdTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has been revoked. Please log in again.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except (firebase_auth.InvalidIdTokenError, Exception) as exc:
-        logger.warning("Token verification failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # ── Step 3: Extract Firebase UID ──────────────────────────────────────
+    decoded_token = await get_verified_firebase_token(credentials)
     firebase_uid: str = decoded_token.get("uid", "")
     if not firebase_uid:
         raise HTTPException(

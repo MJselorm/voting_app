@@ -17,12 +17,13 @@ export interface UserProfile {
   email: string;
   role: "STUDENT" | "ELECTION_OFFICIAL" | "SUPER_ADMIN";
   is_active: boolean;
+  is_verified: boolean;
+  verified_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface SyncPayload {
-  firebase_uid: string;
   full_name: string;
   email: string;
   student_id?: string;
@@ -41,7 +42,8 @@ async function authRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = await getIdToken(true); // Always refresh for accuracy
+  const token = await getIdToken(false); // Use cached token to prevent unnecessary network delay
+
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
@@ -116,7 +118,7 @@ export async function syncUser(payload: SyncPayload): Promise<{
   user: UserProfile;
   created: boolean;
 }> {
-  return publicRequest("/api/auth/sync", {
+  return authRequest("/api/auth/sync", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -128,6 +130,69 @@ export async function syncUser(payload: SyncPayload): Promise<{
  */
 export async function getMe(): Promise<UserProfile> {
   return authRequest<UserProfile>("/api/auth/me");
+}
+
+/**
+ * Update the current authenticated user's profile in the backend.
+ */
+export async function updateMe(payload: {
+  full_name?: string;
+  student_id?: string | null;
+}): Promise<UserProfile> {
+  return authRequest<UserProfile>("/api/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface StudentProfile {
+  id: string;
+  student_id: string;
+  full_name: string | null;
+  email: string | null;
+  department: string | null;
+  level: string | null;
+}
+
+export interface VerificationResponse {
+  success: boolean;
+  message: string;
+  is_verified: boolean;
+  user: UserProfile;
+}
+
+export interface EligibilityCheckResponse {
+  is_eligible: boolean;
+  reason: string;
+  user: UserProfile;
+  student: StudentProfile | null;
+}
+
+export async function checkEligibility(payload: {
+  department?: string;
+  level?: string;
+  class_?: string;
+}): Promise<EligibilityCheckResponse> {
+  return authRequest<EligibilityCheckResponse>("/api/eligibility/check", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Verify student identity against official records on FastAPI backend.
+ */
+export async function verifyStudent(): Promise<VerificationResponse> {
+  return authRequest<VerificationResponse>("/api/auth/verify-student", {
+    method: "POST",
+  });
+}
+
+/**
+ * Get authenticated student's official record (department, level, class).
+ */
+export async function getStudentProfile(): Promise<StudentProfile> {
+  return authRequest<StudentProfile>("/api/students/me");
 }
 
 /**

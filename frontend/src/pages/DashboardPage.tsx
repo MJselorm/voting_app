@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode, memo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { logoutUser } from "../lib/firebase";
 import { useAuthContext } from "../auth/AuthContext";
 import { getMe, type UserProfile } from "../services/api";
@@ -37,10 +37,9 @@ function VisuallyHidden({ children }: { children: ReactNode }) {
 
 const navItems = [
   ["dashboard", "Dashboard", "/dashboard"],
-  ["how_to_vote", "My Votes", "#votes"],
-  ["ballot", "Elections", "#elections"],
+  ["how_to_vote", "My Votes", "/dashboard#votes"],
+  ["ballot", "Elections", "/dashboard#elections"],
   ["person", "Profile", "/profile"],
-  ["help_outline", "Support", "#support"],
 ] as const;
 
 function getGreeting(): string {
@@ -52,14 +51,16 @@ function getGreeting(): string {
 
 // Sidebar has no dependency on profile-loading state, so it's memoized to
 // avoid re-rendering while the dashboard's data fetch is in flight.
-const Sidebar = memo(function Sidebar({
+export const Sidebar = memo(function Sidebar({
   name,
   firstName,
   onLogout,
+  activeNav = "Dashboard",
 }: {
   name: string;
   firstName: string;
   onLogout: () => void;
+  activeNav?: string;
 }) {
   return (
     <aside className="dashboard-sidebar dashboard-sidebar-new">
@@ -79,18 +80,17 @@ const Sidebar = memo(function Sidebar({
           <strong>{name}</strong>
           <span>Verified student</span>
         </div>
-        <Icon>expand_more</Icon>
       </div>
 
       <p className="dashboard-nav-label">Workspace</p>
       <nav className="dashboard-nav" aria-label="Dashboard navigation">
         {navItems.map(([icon, label, href]) => {
-          const isActive = label === "Dashboard";
+          const isActive = label === activeNav;
           return (
-            <a
+            <Link
               key={label}
               className={`dashboard-nav-item ${isActive ? "active" : ""}`}
-              href={href}
+              to={href}
               aria-current={isActive ? "page" : undefined}
             >
               <Icon>{icon}</Icon>
@@ -100,19 +100,10 @@ const Sidebar = memo(function Sidebar({
                   2<VisuallyHidden> open elections</VisuallyHidden>
                 </span>
               )}
-            </a>
+            </Link>
           );
         })}
       </nav>
-
-      <div className="sidebar-help">
-        <Icon>support_agent</Icon>
-        <strong>Need help?</strong>
-        <p>Our election support team is here.</p>
-        <a href="#support">
-          Contact support <Icon>arrow_forward</Icon>
-        </a>
-      </div>
 
       <button className="sidebar-logout" onClick={onLogout} type="button">
         <Icon>logout</Icon>Log out
@@ -142,9 +133,6 @@ function Topbar({
         <button type="button" className="icon-chip has-notification" aria-label="Notifications">
           <Icon>notifications</Icon>
           <span className="notification-dot" aria-hidden="true" />
-        </button>
-        <button type="button" className="icon-chip" aria-label="Settings">
-          <Icon>settings</Icon>
         </button>
         <button
           type="button"
@@ -307,7 +295,6 @@ function ElectionsPanel() {
         <div>
           <p className="eyebrow">Your next decision</p>
           <h3>Open elections</h3>
-          <p className="panel-subtitle">Make your voice count before the deadlines.</p>
         </div>
         <a className="panel-link" href="#elections">
           View all <Icon>arrow_forward</Icon>
@@ -318,21 +305,6 @@ function ElectionsPanel() {
           <ElectionCard key={election.id} election={election} />
         ))}
       </div>
-    </section>
-  );
-}
-
-function PromoPanel() {
-  return (
-    <section className="promo-card promo-card-primary">
-      <div className="promo-copy">
-        <span className="promo-kicker">Student leadership</span>
-        <h3>Have a voice beyond the ballot.</h3>
-        <p>Discover ways to nominate a peer, join a committee, or support campus change.</p>
-      </div>
-      <button type="button" className="promo-button">
-        Explore opportunities <Icon>arrow_forward</Icon>
-      </button>
     </section>
   );
 }
@@ -362,13 +334,6 @@ const activityItems: ActivityItem[] = [
     title: "Profile verified",
     description: "Your student identity is ready for secure voting.",
   },
-  {
-    id: "system-update",
-    isActive: false,
-    time: "Oct 12",
-    title: "System update",
-    description: "Security improvements were applied to the voting ledger.",
-  },
 ];
 
 function ActivityPanel() {
@@ -379,9 +344,6 @@ function ActivityPanel() {
           <p className="eyebrow">Your account</p>
           <h3>Recent activity</h3>
         </div>
-        <button type="button" className="panel-more" aria-label="More activity">
-          <Icon>more_horiz</Icon>
-        </button>
       </div>
       <div className="activity-list">
         {activityItems.map((item) => (
@@ -401,29 +363,6 @@ function ActivityPanel() {
           </div>
         ))}
       </div>
-      <button type="button" className="panel-link">
-        View full history <Icon>arrow_forward</Icon>
-      </button>
-    </section>
-  );
-}
-
-function SecurityPanel() {
-  return (
-    <section className="panel panel-dashed" id="support">
-      <div className="security-head">
-        <div className="security-icon">
-          <Icon>security</Icon>
-        </div>
-        <div>
-          <p className="eyebrow">Private by design</p>
-          <h3>Your vote is protected</h3>
-        </div>
-      </div>
-      <p>Every ballot is encrypted, anonymous, and independently verifiable from the moment you submit it.</p>
-      <a href="#support" className="learn-link">
-        Learn about security <Icon>arrow_forward</Icon>
-      </a>
     </section>
   );
 }
@@ -469,25 +408,14 @@ export function DashboardPage() {
       <main className="dashboard-main dashboard-main-new">
         <Topbar firstName={firstName} greeting={greeting} onProfileClick={() => navigate("/profile")} />
 
-        <div className="dashboard-welcome">
-          <div>
-            <p>Here is what is happening across your campus today.</p>
-          </div>
-          <a className="sidebar-cta" href="#elections">
-            <Icon>how_to_vote</Icon>Cast a vote <Icon>arrow_forward</Icon>
-          </a>
-        </div>
-
         <MetricsSection />
 
         <section className="dashboard-grid dashboard-grid-new">
           <div className="dashboard-column dashboard-column-main">
             <ElectionsPanel />
-            <PromoPanel />
           </div>
           <div className="dashboard-column dashboard-column-side">
             <ActivityPanel />
-            <SecurityPanel />
           </div>
         </section>
 

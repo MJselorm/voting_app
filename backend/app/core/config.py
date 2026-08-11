@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # ── CORS ──────────────────────────────────────────────────────────────
     ALLOWED_ORIGINS: str = "http://localhost:5173"
 
+    # ── Student Identity / Eligibility ───────────────────────────────────
+    ALLOWED_EMAIL_DOMAINS: str = ""
+    EMAIL_PATTERNS: str = ""
+    DEFAULT_ELIGIBLE_DEPARTMENT: str = "Computer Science and Engineering"
+
     # ── App ───────────────────────────────────────────────────────────────
     APP_ENV: str = "development"
 
@@ -39,6 +44,14 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         """Parse comma-separated ALLOWED_ORIGINS into a list."""
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+
+    @property
+    def allowed_email_domains(self) -> list[str]:
+        return [item.strip().lower() for item in self.ALLOWED_EMAIL_DOMAINS.split(",") if item.strip()]
+
+    @property
+    def email_patterns(self) -> list[str]:
+        return [item.strip() for item in self.EMAIL_PATTERNS.split(",") if item.strip()]
 
     @property
     def is_production(self) -> bool:

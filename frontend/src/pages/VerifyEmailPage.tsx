@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { sendVerificationEmail, logoutUser } from "../lib/firebase";
+import { verifyStudent } from "../services/api";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 
@@ -11,6 +12,8 @@ export function VerifyEmailPage() {
 
   const [resendStatus, setResendStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [verificationStep, setVerificationStep] = useState<"idle" | "verifying_student" | "verified_success" | "verification_failed">("idle");
+  const [verificationError, setVerificationError] = useState("");
   const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
@@ -33,10 +36,30 @@ export function VerifyEmailPage() {
 
   const handleCheckVerification = async () => {
     setCheckingStatus(true);
+    setVerificationError("");
+    setVerificationStep("idle");
+
     try {
       await refreshUser();
+
       if (user?.emailVerified) {
-        navigate("/dashboard");
+        setVerificationStep("verifying_student");
+
+        try {
+          await verifyStudent();
+          setVerificationStep("verified_success");
+          setTimeout(() => {
+            navigate("/dashboard");
+          }, 1200);
+          return;
+        } catch (err: any) {
+          setVerificationStep("verification_failed");
+          setVerificationError(
+            err?.detail ||
+              "We couldn't verify your student information. Please check that your Student ID and university email match your official student records."
+          );
+          return;
+        }
       }
     } finally {
       setCheckingStatus(false);
@@ -66,9 +89,9 @@ export function VerifyEmailPage() {
             </div>
           </div>
 
-          <h1 className="auth-title">Verify Your Email</h1>
+          <h1 className="auth-title">Verify Your Account</h1>
           <p className="auth-subtitle" style={{ marginBottom: "1.75rem" }}>
-            We've sent a verification link to your university email. Please verify your email before continuing.
+            We've sent a verification link to your university email. Please click the link in your email and confirm below.
           </p>
 
           {resendStatus === "sent" && (
@@ -84,6 +107,27 @@ export function VerifyEmailPage() {
             </div>
           )}
 
+          {verificationStep === "verifying_student" && (
+            <div className="alert alert-info" style={{ textAlign: "left", marginBottom: "1rem" }}>
+              <span className="spinner spinner-sm" />
+              <span>Verifying your student information...</span>
+            </div>
+          )}
+
+          {verificationStep === "verified_success" && (
+            <div className="alert alert-success" style={{ textAlign: "left", marginBottom: "1rem" }}>
+              <span>✓</span>
+              <span>Student account verified. Redirecting to dashboard...</span>
+            </div>
+          )}
+
+          {verificationStep === "verification_failed" && (
+            <div className="alert alert-error" style={{ textAlign: "left", marginBottom: "1rem" }}>
+              <span>⚠</span>
+              <span>{verificationError}</span>
+            </div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <button
               id="check-verification-btn"
@@ -95,7 +139,7 @@ export function VerifyEmailPage() {
               {checkingStatus ? (
                 <>
                   <span className="spinner spinner-sm" />
-                  Checking…
+                  Verifying…
                 </>
               ) : (
                 <>
