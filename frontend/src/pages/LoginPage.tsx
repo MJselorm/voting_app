@@ -52,7 +52,6 @@ export function LoginPage() {
 
       try {
         await syncUser({
-          firebase_uid: firebaseUser.uid,
           full_name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Student",
           email: firebaseUser.email || "",
         });
@@ -94,7 +93,6 @@ export function LoginPage() {
 
       try {
         await syncUser({
-          firebase_uid: firebaseUser.uid,
           full_name: firebaseUser.displayName || email.split("@")[0],
           email: firebaseUser.email || email,
         });

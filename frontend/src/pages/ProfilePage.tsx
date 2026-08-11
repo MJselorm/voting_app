@@ -67,6 +67,7 @@ export function ProfilePage() {
 
   const displayName = profile?.full_name || fullName || user?.displayName || user?.email?.split("@")[0] || "Student";
   const firstName = displayName.trim().split(/\s+/)[0] || "Student";
+  const profileEmail = profile?.email || user?.email || "";
 
   const isFormModified =
     fullName.trim() !== (profile?.full_name || "") ||
@@ -187,11 +188,15 @@ export function ProfilePage() {
                   <h2>{displayName}</h2>
                   <span className="role-badge">{formattedRole}</span>
                 </div>
-                <p className="profile-hero-email">{user?.email}</p>
+                <p className="profile-hero-email">{profileEmail}</p>
                 <div className="profile-hero-tags">
                   <span className={`status-pill ${user?.emailVerified ? "status-verified" : "status-pending"}`}>
                     <Icon>{user?.emailVerified ? "verified" : "mark_email_unread"}</Icon>
                     {user?.emailVerified ? "Email Verified" : "Verification Pending"}
+                  </span>
+                  <span className={`status-pill ${profile?.is_verified ? "status-verified" : "status-pending"}`}>
+                    <Icon>{profile?.is_verified ? "school" : "pending_actions"}</Icon>
+                    {profile?.is_verified ? "Student Verified" : "Student Verification Required"}
                   </span>
                 </div>
               </div>
@@ -246,13 +251,10 @@ export function ProfilePage() {
                         id="emailInput"
                         type="email"
                         className="form-input"
-                        value={user?.email || ""}
+                        value={profileEmail}
                         disabled
                       />
                     </div>
-                    <small className="form-hint">
-                      Email address is managed via your Firebase authentication account.
-                    </small>
                   </div>
 
                   <div className="form-group">
@@ -361,15 +363,17 @@ export function ProfilePage() {
 
                   <div className="meta-list">
                     <div className="meta-item">
-                      <span className="meta-label">Firebase Account UID</span>
-                      <div className="meta-value-row">
-                        <code className="uid-code">{user?.uid || "—"}</code>
-                      </div>
+                      <span className="meta-label">Account Created</span>
+                      <span className="meta-val">{createdDate}</span>
                     </div>
 
                     <div className="meta-item">
-                      <span className="meta-label">Account Created</span>
-                      <span className="meta-val">{createdDate}</span>
+                      <span className="meta-label">Student Verification</span>
+                      <span className="meta-val">
+                        {profile?.is_verified
+                          ? `Verified${profile.verified_at ? ` on ${new Date(profile.verified_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}`
+                          : "Not verified"}
+                      </span>
                     </div>
                   </div>
                 </div>
