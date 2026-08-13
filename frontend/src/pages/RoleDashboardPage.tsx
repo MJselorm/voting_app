@@ -26,7 +26,7 @@ export function RoleDashboardPage({ role, page, children }: { role: Exclude<User
     getAdminDashboardStats().then(setAdminStats).catch((error) => setStatsError(error?.detail || "Could not load dashboard statistics."));
   }, [role, isDashboard]);
   const metrics = role === "SUPER_ADMIN"
-    ? [["Registered Users", adminStats?.registered_users.toLocaleString() || "—"], ["Eligible to Vote", adminStats?.eligible_voters.toLocaleString() || "—"], ["Verified to Vote", adminStats?.verified_voters.toLocaleString() || "—"]]
+    ? [["Uploaded Student Records", formatStat(adminStats?.uploaded_student_records)], ["Registered Users", formatStat(adminStats?.registered_users)], ["Registered Voters", formatStat(adminStats?.registered_voters)], ["Eligible to Vote", formatStat(adminStats?.eligible_voters)]]
     : [["Active Elections", "2"], ["Upcoming Elections", "3"], ["Pending Approvals", "1"], ["Students", "1,247"]];
 
   const logout = async () => { await logoutUser(); navigate("/login", { replace: true }); };
@@ -36,4 +36,8 @@ export function RoleDashboardPage({ role, page, children }: { role: Exclude<User
       {children ?? (isDashboard ? <>{statsError && <div className="alert alert-error" role="alert">{statsError}</div>}<section className="dashboard-metrics dashboard-metrics-new">{metrics.map(([label, value]) => <article key={label} className="metric-card"><h2>{value}</h2><p>{label}</p></article>)}</section><section className="panel"><div className="panel-head"><div><p className="eyebrow">Quick actions</p><h3>Manage elections</h3></div></div><div className="form-actions"><Link className="btn btn-primary" to={role === "SUPER_ADMIN" ? "/admin/elections" : "/official/elections"}>Manage Elections</Link><Link className="btn btn-secondary" to={role === "SUPER_ADMIN" ? "/admin/students" : "/official/students"}>Student Records</Link></div></section></> : <section className="panel"><div className="panel-head"><div><p className="eyebrow">Coming soon</p><h3>{resolvedPage}</h3></div></div><p>This workspace is ready for the next phase of implementation.</p></section>)}
     </main>
   </div>;
+}
+
+function formatStat(value: number | undefined): string {
+  return typeof value === "number" ? value.toLocaleString() : "—";
 }

@@ -113,18 +113,18 @@ async def get_admin_dashboard_stats(
     _: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
-    """Return dashboard counts from the database for Super Admins only."""
-    registered_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
-
-    verified_voters = (
-        await db.execute(
-            select(func.count()).select_from(User).where(
-                User.role == UserRole.STUDENT,
-                User.is_active.is_(True),
-                User.is_verified.is_(True),
-            )
-        )
-    ).scalar_one()
+    """Return all exact dashboard totals in one database round trip."""
+    registered_users = select(func.count()).select_from(User).scalar_subquery()
+    uploaded_student_records = select(func.count()).select_from(Student).scalar_subquery()
+    registered_voters = select(func.count()).select_from(User).where(
+        User.role == UserRole.STUDENT,
+        User.is_active.is_(True),
+    ).scalar_subquery()
+    verified_voters = select(func.count()).select_from(User).where(
+        User.role == UserRole.STUDENT,
+        User.is_active.is_(True),
+        User.is_verified.is_(True),
+    ).scalar_subquery()
 
     eligible_conditions = [
         User.role == UserRole.STUDENT,
@@ -137,16 +137,24 @@ async def get_admin_dashboard_stats(
         eligible_conditions.append(
             func.lower(Student.department) == settings.DEFAULT_ELIGIBLE_DEPARTMENT.strip().lower()
         )
-    eligible_voters = (
-        await db.execute(
-            select(func.count()).select_from(User).join(Student, User.student_id == Student.student_id).where(*eligible_conditions)
-        )
-    ).scalar_one()
+    eligible_voters = select(func.count()).select_from(User).join(
+        Student, User.student_id == Student.student_id
+    ).where(*eligible_conditions).scalar_subquery()
+
+    stats = (await db.execute(select(
+        uploaded_student_records.label("uploaded_student_records"),
+        registered_users.label("registered_users"),
+        registered_voters.label("registered_voters"),
+        verified_voters.label("verified_voters"),
+        eligible_voters.label("eligible_voters"),
+    ))).mappings().one()
 
     return {
-        "registered_users": registered_users,
-        "eligible_voters": eligible_voters,
-        "verified_voters": verified_voters,
+        "uploaded_student_records": stats["uploaded_student_records"],
+        "registered_users": stats["registered_users"],
+        "registered_voters": stats["registered_voters"],
+        "eligible_voters": stats["eligible_voters"],
+        "verified_voters": stats["verified_voters"],
     }
 
 

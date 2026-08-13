@@ -146,13 +146,23 @@ export async function getMe(): Promise<UserProfile> {
 }
 
 export interface AdminDashboardStats {
+  uploaded_student_records: number;
   registered_users: number;
+  registered_voters: number;
   eligible_voters: number;
   verified_voters: number;
 }
 
-export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
-  return authRequest<AdminDashboardStats>("/api/auth/admin/dashboard-stats");
+let dashboardStatsRequest: Promise<AdminDashboardStats> | null = null;
+
+export function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  // React Strict Mode may mount a page twice in development. Reuse only an
+  // in-flight request; after it settles the next dashboard visit fetches fresh data.
+  if (!dashboardStatsRequest) {
+    dashboardStatsRequest = authRequest<AdminDashboardStats>("/api/auth/admin/dashboard-stats")
+      .finally(() => { dashboardStatsRequest = null; });
+  }
+  return dashboardStatsRequest;
 }
 
 /**
