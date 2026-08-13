@@ -46,6 +46,34 @@ async def sync_user(
         await db.execute(select(User).where(User.firebase_uid == firebase_uid))
     ).scalar_one_or_none()
     if existing_user is not None:
+        # Firebase users created before their profile was fully synced can have
+        # no student ID. Fill that missing identity data from the trusted,
+        # authenticated registration payload so they can be verified.
+        if payload.student_id and payload.student_id != existing_user.student_id:
+            student_id_owner = (
+                await db.execute(
+                    select(User).where(
+                        User.student_id == payload.student_id,
+                        User.id != existing_user.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if student_id_owner is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This Student ID is already registered.",
+                )
+            existing_user.student_id = payload.student_id
+            existing_user.is_verified = False
+            existing_user.verified_at = None
+
+        if payload.full_name.strip() and payload.full_name != existing_user.full_name:
+            existing_user.full_name = payload.full_name
+            existing_user.is_verified = False
+            existing_user.verified_at = None
+
+        await db.flush()
+        await db.refresh(existing_user)
         return UserSyncResponse(user=existing_user, created=False)
 
     if token_email and token_email != payload.email.strip().lower():
