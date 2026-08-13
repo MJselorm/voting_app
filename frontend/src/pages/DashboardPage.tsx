@@ -35,12 +35,11 @@ function VisuallyHidden({ children }: { children: ReactNode }) {
   );
 }
 
-const navItems = [
-  ["dashboard", "Dashboard", "/dashboard"],
-  ["how_to_vote", "My Votes", "/dashboard#votes"],
-  ["ballot", "Elections", "/dashboard#elections"],
-  ["person", "Profile", "/profile"],
-] as const;
+const navigationByRole = {
+  STUDENT: [["dashboard", "Dashboard", "/dashboard"], ["ballot", "Elections", "/dashboard#elections"], ["how_to_vote", "My Votes", "/dashboard#votes"], ["notifications", "Notifications", "/dashboard#notifications"], ["person", "Profile", "/profile"]],
+  ELECTION_OFFICIAL: [["dashboard", "Dashboard", "/official/dashboard"], ["ballot", "Elections", "/official/elections"], ["groups", "Student Records", "/official/students"], ["campaign", "Candidates", "/official/candidates"], ["bar_chart", "Results", "/official/results"], ["notifications", "Notifications", "/official/notifications"], ["person", "Profile", "/profile"]],
+  SUPER_ADMIN: [["dashboard", "Dashboard", "/admin/dashboard"], ["ballot", "Elections", "/admin/elections"], ["groups", "Student Records", "/admin/students"], ["manage_accounts", "Users", "/admin/users"], ["admin_panel_settings", "Election Officials", "/admin/officials"], ["fact_check", "Approvals", "/admin/approvals"], ["account_tree", "Departments", "/admin/departments"], ["bar_chart", "Results", "/admin/results"], ["history", "Audit Logs", "/admin/audit-logs"], ["settings", "Settings", "/admin/settings"], ["person", "Profile", "/profile"]],
+} as const;
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -56,19 +55,24 @@ export const Sidebar = memo(function Sidebar({
   firstName,
   onLogout,
   activeNav = "Dashboard",
+  role = "STUDENT",
 }: {
   name: string;
   firstName: string;
   onLogout: () => void;
   activeNav?: string;
+  role?: UserProfile["role"];
 }) {
+  const navItems = navigationByRole[role];
+  const roleLabel = role === "SUPER_ADMIN" ? "Super Admin" : role === "ELECTION_OFFICIAL" ? "Election Official" : "Verified student";
+  const portalLabel = role === "SUPER_ADMIN" ? "System administration" : role === "ELECTION_OFFICIAL" ? "Election management" : "Student voting portal";
   return (
     <aside className="dashboard-sidebar dashboard-sidebar-new">
       <div className="dashboard-sidebar-brand">
         <div className="dashboard-crest" aria-hidden="true">U</div>
         <div>
           <div className="dashboard-sidebar-title">UniVote</div>
-          <div className="dashboard-sidebar-subtitle">Student voting portal</div>
+          <div className="dashboard-sidebar-subtitle">{portalLabel}</div>
         </div>
       </div>
 
@@ -78,7 +82,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
         <div>
           <strong>{name}</strong>
-          <span>Verified student</span>
+          <span>{roleLabel}</span>
         </div>
       </div>
 
@@ -95,7 +99,7 @@ export const Sidebar = memo(function Sidebar({
             >
               <Icon>{icon}</Icon>
               <span>{label}</span>
-              {label === "Elections" && (
+              {role === "STUDENT" && label === "Elections" && (
                 <span className="nav-count">
                   2<VisuallyHidden> open elections</VisuallyHidden>
                 </span>

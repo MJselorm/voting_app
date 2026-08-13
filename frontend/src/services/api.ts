@@ -145,6 +145,16 @@ export async function getMe(): Promise<UserProfile> {
   return authRequest<UserProfile>("/api/auth/me");
 }
 
+export interface AdminDashboardStats {
+  registered_users: number;
+  eligible_voters: number;
+  verified_voters: number;
+}
+
+export async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  return authRequest<AdminDashboardStats>("/api/auth/admin/dashboard-stats");
+}
+
 /**
  * Update the current authenticated user's profile in the backend.
  */

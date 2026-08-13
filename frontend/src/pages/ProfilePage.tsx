@@ -4,6 +4,7 @@ import { Sidebar } from "./DashboardPage";
 import { useAuthContext } from "../auth/AuthContext";
 import { getMe, updateMe, verifyStudent, type UserProfile } from "../services/api";
 import { logoutUser, sendPasswordReset, sendVerificationEmail } from "../lib/firebase";
+import { dashboardPath } from "../auth/ProtectedRoute";
 
 function Icon({ children }: { children: ReactNode }) {
   return (
@@ -15,7 +16,7 @@ function Icon({ children }: { children: ReactNode }) {
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { user } = useAuthContext();
+  const { user, profile: authenticatedProfile } = useAuthContext();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -71,6 +72,10 @@ export function ProfilePage() {
   const displayName = profile?.full_name || fullName || user?.displayName || user?.email?.split("@")[0] || "Student";
   const firstName = displayName.trim().split(/\s+/)[0] || "Student";
   const profileEmail = profile?.email || user?.email || "";
+  // The auth context already has the API profile before protected pages render.
+  // Prefer it so admin/official navigation never briefly falls back to student UI.
+  const role = authenticatedProfile?.role || profile?.role || "STUDENT";
+  const isStudent = role === "STUDENT";
 
   const isFormModified =
     fullName.trim() !== (profile?.full_name || "") ||
@@ -160,9 +165,13 @@ export function ProfilePage() {
   const formattedRole = roleLabelMap[profile?.role || "STUDENT"] || "Student";
   const createdDate = profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
 
+  if (loadingProfile && !authenticatedProfile) {
+    return <div className="auth-loading-screen"><div className="spinner" aria-label="Loading profile…" /></div>;
+  }
+
   return (
     <div className="dashboard-shell dashboard-shell-new">
-      <Sidebar name={displayName} firstName={firstName} onLogout={handleLogout} activeNav="Profile" />
+      <Sidebar name={displayName} firstName={firstName} onLogout={handleLogout} activeNav="Profile" role={role} />
 
       <main className="dashboard-main dashboard-main-new">
         <header className="dashboard-topbar dashboard-topbar-new">
@@ -175,7 +184,7 @@ export function ProfilePage() {
               type="button"
               className="btn btn-secondary"
               style={{ width: "auto", padding: "0.4rem 0.875rem", fontSize: "0.875rem" }}
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate(dashboardPath(role))}
             >
               ← Back to Dashboard
             </button>
@@ -249,7 +258,7 @@ export function ProfilePage() {
                 )}
 
                 <form onSubmit={handleSaveProfile} className="profile-form">
-                  <div className="form-group">
+                  {isStudent && <div className="form-group">
                     <label htmlFor="fullNameInput">Full Name</label>
                     <div className="input-wrapper">
                       <Icon>person</Icon>
@@ -263,7 +272,7 @@ export function ProfilePage() {
                         required
                       />
                     </div>
-                  </div>
+                  </div>}
 
                   <div className="form-group">
                     <label htmlFor="emailInput">Email Address</label>
@@ -381,7 +390,7 @@ export function ProfilePage() {
                     </div>
                   )}
 
-                  {!profile?.is_verified && (
+                  {isStudent && !profile?.is_verified && (
                     <div className="security-item mt-3">
                       <div className="security-item-icon warning">
                         <Icon>school</Icon>
@@ -418,10 +427,10 @@ export function ProfilePage() {
                   <hr className="divider" />
 
                   <div className="meta-list">
-                    <div className="meta-item">
+                    {isStudent && <div className="meta-item">
                       <span className="meta-label">Account Created</span>
                       <span className="meta-val">{createdDate}</span>
-                    </div>
+                    </div>}
 
                     <div className="meta-item">
                       <span className="meta-label">Student Verification</span>

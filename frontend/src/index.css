@@ -1075,6 +1075,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  /* Super Admin has more items than shorter viewports can display. Keep the
+     navigation usable while preserving a permanently visible logout action. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
 }
 
 .dashboard-nav-item,
@@ -1100,6 +1107,14 @@ body {
 
 .sidebar-logout {
   margin-top: auto;
+  flex: 0 0 auto;
+  color: var(--color-error);
+  border: 1px solid transparent;
+}
+
+.sidebar-logout:hover {
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-error) 22%, transparent);
 }
 
 .dashboard-main {
@@ -2496,4 +2511,4 @@ button:focus-visible {
 
 .mt-3 {
   margin-top: 0.75rem;
-}
+}

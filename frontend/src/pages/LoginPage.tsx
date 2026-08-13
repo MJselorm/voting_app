@@ -2,7 +2,8 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import { loginUser, signInWithGoogle } from "../lib/firebase";
-import { syncUser } from "../services/api";
+import { getMe, syncUser } from "../services/api";
+import { dashboardPath } from "../auth/ProtectedRoute";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import bannerImg from "../assets/banner.jpg";
@@ -59,7 +60,8 @@ export function LoginPage() {
         console.error("Backend sync failed on Google login:", syncErr);
       }
 
-      navigate(from, { replace: true });
+      const profile = await getMe();
+      navigate(from === "/dashboard" ? dashboardPath(profile.role) : from, { replace: true });
     } catch (err) {
       if (err instanceof FirebaseError) {
         setError(parseLoginError(err));
@@ -100,7 +102,8 @@ export function LoginPage() {
         console.error("Backend sync failed on login:", syncErr);
       }
 
-      navigate(from, { replace: true });
+      const profile = await getMe();
+      navigate(from === "/dashboard" ? dashboardPath(profile.role) : from, { replace: true });
     } catch (err) {
       if (err instanceof FirebaseError) {
         setError(parseLoginError(err));

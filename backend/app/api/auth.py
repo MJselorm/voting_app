@@ -4,12 +4,14 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user, get_verified_firebase_token
+from app.auth.dependencies import get_current_user, get_verified_firebase_token, require_admin
+from app.core.config import settings
 from app.database.session import get_db
 from app.models.user import User, UserRole
+from app.models.student import Student
 from app.schemas.user import (
     StudentVerificationResponse,
     UserUpdateRequest,
@@ -104,6 +106,48 @@ async def sync_user(
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return current_user
+
+
+@router.get("/admin/dashboard-stats")
+async def get_admin_dashboard_stats(
+    _: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    """Return dashboard counts from the database for Super Admins only."""
+    registered_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
+
+    verified_voters = (
+        await db.execute(
+            select(func.count()).select_from(User).where(
+                User.role == UserRole.STUDENT,
+                User.is_active.is_(True),
+                User.is_verified.is_(True),
+            )
+        )
+    ).scalar_one()
+
+    eligible_conditions = [
+        User.role == UserRole.STUDENT,
+        User.is_active.is_(True),
+        User.is_verified.is_(True),
+        Student.status == "ACTIVE",
+    ]
+    # This mirrors the current default eligibility criteria used by the API.
+    if settings.DEFAULT_ELIGIBLE_DEPARTMENT.strip().lower() != "all":
+        eligible_conditions.append(
+            func.lower(Student.department) == settings.DEFAULT_ELIGIBLE_DEPARTMENT.strip().lower()
+        )
+    eligible_voters = (
+        await db.execute(
+            select(func.count()).select_from(User).join(Student, User.student_id == Student.student_id).where(*eligible_conditions)
+        )
+    ).scalar_one()
+
+    return {
+        "registered_users": registered_users,
+        "eligible_voters": eligible_voters,
+        "verified_voters": verified_voters,
+    }
 
 
 @router.patch("/me", response_model=UserResponse)

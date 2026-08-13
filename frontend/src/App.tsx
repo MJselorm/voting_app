@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
-import { ProtectedRoute, PublicOnlyRoute } from "./auth/ProtectedRoute";
+import { ProtectedRoute, PublicOnlyRoute, RoleProtectedRoute, dashboardPath } from "./auth/ProtectedRoute";
 
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -9,6 +9,8 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { StudentManagementPage } from "./pages/StudentManagementPage";
+import { RoleDashboardPage } from "./pages/RoleDashboardPage";
+import { useAuthContext } from "./auth/AuthContext";
 
 import "./index.css";
 
@@ -48,14 +50,9 @@ export default function App() {
                 - User to be authenticated (Firebase)
                 - Email to be verified (requireVerified=true by default)
           ─────────────────────────────────────────────────────────────── */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
+          <Route path="/dashboard" element={<RoleProtectedRoute allowedRoles={["STUDENT"]}>
                 <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
+              </RoleProtectedRoute>} />
           <Route
             path="/profile"
             element={
@@ -64,13 +61,24 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/admin/students" element={<ProtectedRoute><StudentManagementPage /></ProtectedRoute>} />
+          <Route path="/official/dashboard" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" /></RoleProtectedRoute>} />
+          <Route path="/official/students" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" page="Student Records"><StudentManagementPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/official/:page" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" /></RoleProtectedRoute>} />
+          <Route path="/admin/dashboard" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" /></RoleProtectedRoute>} />
+          <Route path="/admin/students" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Student Records"><StudentManagementPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/admin/:page" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" /></RoleProtectedRoute>} />
 
           {/* ── Default Redirects ─────────────────────────────────────── */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="*" element={<HomeRedirect />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
   );
+}
+
+function HomeRedirect() {
+  const { profile, isProfileLoading, status } = useAuthContext();
+  if (status === "authenticated" && isProfileLoading) return <div className="auth-loading-screen"><div className="spinner" /></div>;
+  return <Navigate to={status === "authenticated" ? dashboardPath(profile?.role) : "/login"} replace />;
 }
