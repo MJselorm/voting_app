@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlsplit, urlunsplit
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +36,19 @@ class Settings(BaseSettings):
 
     # ── App ───────────────────────────────────────────────────────────────
     APP_ENV: str = "development"
+
+    @property
+    def async_database_url(self) -> str:
+        """Return DATABASE_URL in the format required by SQLAlchemy async.
+
+        Supabase's dashboard provides pooler strings with a ``postgresql://``
+        scheme. The app uses asyncpg, so convert only that scheme while leaving
+        credentials, host, port, database, and query parameters untouched.
+        """
+        parts = urlsplit(self.DATABASE_URL)
+        if parts.scheme == "postgresql":
+            return urlunsplit(("postgresql+asyncpg", parts.netloc, parts.path, parts.query, parts.fragment))
+        return self.DATABASE_URL
 
     @property
     def firebase_private_key_decoded(self) -> str:

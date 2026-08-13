@@ -9,19 +9,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, get_verified_firebase_token
 from app.database.session import get_db
-from app.models.student import Student
 from app.models.user import User, UserRole
 from app.schemas.user import (
     StudentVerificationResponse,
+    UserUpdateRequest,
     UserResponse,
     UserSyncRequest,
     UserSyncResponse,
 )
-from app.services.identity import names_match, verify_email_match
+from app.services.student_records import find_student_by_id
+from app.services.student_verification import compare_identity
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+VERIFICATION_FAILURE_MESSAGE = (
+    "We couldn't verify your student information. Please make sure the information "
+    "you provided matches your official university records."
+)
 
 
 @router.post("/sync", response_model=UserSyncResponse)
@@ -72,38 +78,70 @@ async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse
     return current_user
 
 
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    payload: UserUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    profile_identity_changed = False
+    if "full_name" in payload.model_fields_set and payload.full_name != current_user.full_name:
+        current_user.full_name = payload.full_name or current_user.full_name
+        profile_identity_changed = True
+
+    if "student_id" in payload.model_fields_set and payload.student_id != current_user.student_id:
+        if payload.student_id:
+            student_id_owner = (
+                await db.execute(
+                    select(User).where(
+                        User.student_id == payload.student_id,
+                        User.id != current_user.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if student_id_owner is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This Student ID is already linked to another account.",
+                )
+
+        current_user.student_id = payload.student_id
+        profile_identity_changed = True
+
+    if profile_identity_changed:
+        # Changed registration identity must be checked against official records again.
+        current_user.is_verified = False
+        current_user.verified_at = None
+
+    await db.flush()
+    await db.refresh(current_user)
+    return current_user
+
+
 @router.post("/verify-student", response_model=StudentVerificationResponse)
 async def verify_student(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StudentVerificationResponse:
-    if not current_user.student_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="We couldn't verify your student information. Please check that your Student ID and university email match your official student records.",
-        )
-
-    official_student = (
-        await db.execute(select(Student).where(Student.student_id == current_user.student_id))
-    ).scalar_one_or_none()
-    if official_student is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="We couldn't verify your student information. Please check that your Student ID and university email match your official student records.")
+    official_student = await find_student_by_id(db, current_user.student_id)
 
     conflict = (
         await db.execute(select(User).where(User.student_id == current_user.student_id, User.id != current_user.id))
     ).scalar_one_or_none()
     if conflict is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This Student ID is already linked to another account.")
+        logger.warning("Student verification failed user_id=%s reason=student_id_already_linked", current_user.id)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=VERIFICATION_FAILURE_MESSAGE)
 
-    if not verify_email_match(current_user.email, official_student.email):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="We couldn't verify your student information. Please check that your Student ID and university email match your official student records.")
-
-    if not names_match(current_user.full_name, official_student.full_name):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="We couldn't verify your student information. Please check that your Student ID and university email match your official student records.")
+    comparison = compare_identity(current_user, official_student)
+    if not comparison.verified:
+        logger.warning("Student verification failed user_id=%s reason=%s", current_user.id, comparison.audit_reason)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=VERIFICATION_FAILURE_MESSAGE)
 
     current_user.student_id = official_student.student_id
     current_user.is_verified = True
     current_user.verified_at = datetime.now(timezone.utc)
-    await db.flush()
+    # Commit here so a successful verification is durable before responding.
+    await db.commit()
     await db.refresh(current_user)
+    logger.info("Student verification succeeded user_id=%s", current_user.id)
     return StudentVerificationResponse(success=True, message="Student account verified.", is_verified=True, user=current_user)

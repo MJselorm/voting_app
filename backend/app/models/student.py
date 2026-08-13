@@ -54,6 +54,13 @@ class Student(Base):
     level: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # "class" is a reserved word in Python — use class_ and map it explicitly.
     class_: Mapped[str | None] = mapped_column("class", String(100), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="ACTIVE",
+        server_default="ACTIVE",
+        comment="Official student status. Only ACTIVE students can verify or vote.",
+    )
 
     # ── Timestamps ────────────────────────────────────────────────────────
     created_at: Mapped[datetime] = mapped_column(

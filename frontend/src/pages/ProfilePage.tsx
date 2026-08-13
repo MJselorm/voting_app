@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar } from "./DashboardPage";
 import { useAuthContext } from "../auth/AuthContext";
-import { getMe, updateMe, type UserProfile } from "../services/api";
+import { getMe, updateMe, verifyStudent, type UserProfile } from "../services/api";
 import { logoutUser, sendPasswordReset, sendVerificationEmail } from "../lib/firebase";
 
 function Icon({ children }: { children: ReactNode }) {
@@ -36,6 +36,9 @@ export function ProfilePage() {
 
   const [verificationSent, setVerificationSent] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
+  const [verifyingStudent, setVerifyingStudent] = useState(false);
+  const [studentVerificationError, setStudentVerificationError] = useState("");
+  const [studentVerificationSuccess, setStudentVerificationSuccess] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +129,25 @@ export function ProfilePage() {
       console.error("Failed to send verification email:", err);
     } finally {
       setSendingVerification(false);
+    }
+  };
+
+  const handleStudentVerification = async () => {
+    setVerifyingStudent(true);
+    setStudentVerificationError("");
+    setStudentVerificationSuccess("");
+
+    try {
+      const result = await verifyStudent();
+      setProfile(result.user);
+      setStudentVerificationSuccess(result.message);
+    } catch (err: any) {
+      setStudentVerificationError(
+        err?.detail ||
+          "We couldn't verify your student information. Please check that your Student ID, full name, and university email match your official university records."
+      );
+    } finally {
+      setVerifyingStudent(false);
     }
   };
 
@@ -356,6 +378,40 @@ export function ProfilePage() {
                       >
                         {verificationSent ? "Sent!" : sendingVerification ? "Sending..." : "Re-send Link"}
                       </button>
+                    </div>
+                  )}
+
+                  {!profile?.is_verified && (
+                    <div className="security-item mt-3">
+                      <div className="security-item-icon warning">
+                        <Icon>school</Icon>
+                      </div>
+                      <div className="security-item-content">
+                        <h4>Student Record Check</h4>
+                        <p>Compare your profile details with the official student record used for voting eligibility.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleStudentVerification}
+                        disabled={verifyingStudent}
+                      >
+                        {verifyingStudent ? "Checking..." : "Check Student Record"}
+                      </button>
+                    </div>
+                  )}
+
+                  {studentVerificationSuccess && (
+                    <div className="alert alert-success mt-2" role="status">
+                      <Icon>check_circle</Icon>
+                      <span>{studentVerificationSuccess}</span>
+                    </div>
+                  )}
+
+                  {studentVerificationError && (
+                    <div className="alert alert-error mt-2" role="alert">
+                      <Icon>error</Icon>
+                      <span>{studentVerificationError}</span>
                     </div>
                   )}
 

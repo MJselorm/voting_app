@@ -4,7 +4,6 @@ import csv
 import io
 from typing import Any, NamedTuple
 
-from app.core.config import settings
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,10 +28,7 @@ def parse_and_validate_csv(csv_content: str) -> tuple[list[dict[str, str]], list
         - department
         - level
         - class
-
-    Optional columns:
-        - level
-        - class
+        - status (ACTIVE or INACTIVE)
 
     Validates:
         - Required header existence
@@ -48,7 +44,7 @@ def parse_and_validate_csv(csv_content: str) -> tuple[list[dict[str, str]], list
         return [], ["CSV file is empty or missing headers."]
 
     normalized_headers = [h.strip().lower() for h in reader.fieldnames if h]
-    required_fields = {"student_id", "full_name", "email", "department", "level", "class"}
+    required_fields = {"student_id", "full_name", "email", "department", "level", "class", "status"}
 
     missing_fields = required_fields - set(normalized_headers)
     if missing_fields:
@@ -64,6 +60,7 @@ def parse_and_validate_csv(csv_content: str) -> tuple[list[dict[str, str]], list
         name = row.get("full_name", "")
         email = row.get("email", "").lower()
         dept = row.get("department", "")
+        student_status = row.get("status", "").upper()
 
         if not sid:
             errors.append(f"Row {row_idx}: Missing required 'student_id'.")
@@ -84,11 +81,12 @@ def parse_and_validate_csv(csv_content: str) -> tuple[list[dict[str, str]], list
 
         if not dept:
             errors.append(f"Row {row_idx}: Missing required 'department'.")
-        elif settings.allowed_email_domains and "@" in email:
-            pass
-
-        if dept and not dept.strip():
-            errors.append(f"Row {row_idx}: Invalid department value.")
+        if not row.get("level", ""):
+            errors.append(f"Row {row_idx}: Missing required 'level'.")
+        if not row.get("class", ""):
+            errors.append(f"Row {row_idx}: Missing required 'class'.")
+        if student_status not in {"ACTIVE", "INACTIVE"}:
+            errors.append(f"Row {row_idx}: 'status' must be ACTIVE or INACTIVE.")
 
         records.append({
             "student_id": sid,
@@ -97,6 +95,7 @@ def parse_and_validate_csv(csv_content: str) -> tuple[list[dict[str, str]], list
             "department": dept,
             "level": row.get("level", ""),
             "class": row.get("class", ""),
+            "status": student_status,
         })
 
     return records, errors
@@ -129,6 +128,7 @@ async def import_students_from_csv(csv_content: str, db: AsyncSession) -> Import
             existing_student.department = rec["department"]
             existing_student.level = rec["level"] or None
             existing_student.class_ = rec["class"] or None
+            existing_student.status = rec["status"]
             updated_count += 1
         else:
             new_student = Student(
@@ -138,6 +138,7 @@ async def import_students_from_csv(csv_content: str, db: AsyncSession) -> Import
                 department=rec["department"],
                 level=rec["level"] or None,
                 class_=rec["class"] or None,
+                status=rec["status"],
             )
             db.add(new_student)
             created_count += 1

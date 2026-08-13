@@ -8,7 +8,7 @@ from app.auth.dependencies import get_current_user
 from app.database.session import get_db
 from app.models.student import Student
 from app.models.user import User
-from app.schemas.user import EligibilityCheckRequest, EligibilityCheckResponse
+from app.schemas.user import EligibilityCheckResponse
 from app.services.eligibility import check_election_eligibility
 
 router = APIRouter(prefix="/api/eligibility", tags=["Eligibility"])
@@ -16,7 +16,6 @@ router = APIRouter(prefix="/api/eligibility", tags=["Eligibility"])
 
 @router.post("/check", response_model=EligibilityCheckResponse)
 async def check_eligibility(
-    payload: EligibilityCheckRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> EligibilityCheckResponse:
@@ -25,15 +24,9 @@ async def check_eligibility(
         result = await db.execute(select(Student).where(Student.student_id == current_user.student_id))
         student = result.scalar_one_or_none()
 
-    criteria = {}
-    if payload.department:
-        criteria["department"] = payload.department
-    if payload.level:
-        criteria["level"] = payload.level
-    if payload.class_:
-        criteria["class"] = payload.class_
-
-    eligibility = check_election_eligibility(current_user, student, criteria or None)
+    # Election criteria must come from an election record or backend defaults,
+    # never from a browser-controlled request body.
+    eligibility = check_election_eligibility(current_user, student)
     return EligibilityCheckResponse(
         is_eligible=eligibility.is_eligible,
         reason=eligibility.reason,

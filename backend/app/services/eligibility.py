@@ -5,6 +5,7 @@ from typing import Any, NamedTuple
 from app.core.config import settings
 from app.models.student import Student
 from app.models.user import User
+from app.services.student_records import student_is_active
 
 
 class EligibilityResult(NamedTuple):
@@ -39,6 +40,9 @@ def check_election_eligibility(
     # ── Check 3: Official Student Record Linkage ──────────────────────────────
     if official_student is None:
         return EligibilityResult(False, "No official student record found for this account.")
+
+    if not student_is_active(official_student):
+        return EligibilityResult(False, "Official student record is inactive.")
 
     # If no specific election target criteria provided, default to department check for CSE MVP
     if not target_criteria:

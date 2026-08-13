@@ -137,7 +137,7 @@ export function RegisterPage() {
 
           <div className="signup-info-box">
             <span className="signup-info-icon">i</span>
-            <p>Your Student ID helps us determine which elections you are eligible to participate in.</p>
+            <p>Your details will be checked against official university records before your account is verified.</p>
           </div>
 
           {globalError && (

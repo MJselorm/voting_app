@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { sendVerificationEmail, logoutUser } from "../lib/firebase";
+import { auth, sendVerificationEmail, logoutUser } from "../lib/firebase";
 import { verifyStudent } from "../services/api";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
@@ -42,7 +42,7 @@ export function VerifyEmailPage() {
     try {
       await refreshUser();
 
-      if (user?.emailVerified) {
+      if (auth?.currentUser?.emailVerified) {
         setVerificationStep("verifying_student");
 
         try {
@@ -61,6 +61,8 @@ export function VerifyEmailPage() {
           return;
         }
       }
+      setVerificationStep("verification_failed");
+      setVerificationError("Your email is not verified yet. Please use the link in your inbox, then try again.");
     } finally {
       setCheckingStatus(false);
     }

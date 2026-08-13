@@ -152,6 +152,8 @@ export interface StudentProfile {
   email: string | null;
   department: string | null;
   level: string | null;
+  class_: string | null;
+  status: string;
 }
 
 export interface VerificationResponse {
@@ -168,14 +170,9 @@ export interface EligibilityCheckResponse {
   student: StudentProfile | null;
 }
 
-export async function checkEligibility(payload: {
-  department?: string;
-  level?: string;
-  class_?: string;
-}): Promise<EligibilityCheckResponse> {
+export async function checkEligibility(): Promise<EligibilityCheckResponse> {
   return authRequest<EligibilityCheckResponse>("/api/eligibility/check", {
     method: "POST",
-    body: JSON.stringify(payload),
   });
 }
 

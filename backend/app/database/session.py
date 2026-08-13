@@ -8,7 +8,7 @@ from app.core.config import settings
 
 # Create the async engine once at module level.
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    settings.async_database_url,
     echo=not settings.is_production,  # Log SQL only in development
     pool_pre_ping=True,               # Detect stale connections automatically
     pool_size=10,

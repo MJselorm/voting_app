@@ -163,3 +163,5 @@ class StudentResponse(BaseModel):
     email: str | None = None
     department: str | None = None
     level: str | None = None
+    class_: str | None = None
+    status: str

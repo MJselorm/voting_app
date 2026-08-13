@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode, memo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { logoutUser } from "../lib/firebase";
 import { useAuthContext } from "../auth/AuthContext";
-import { getMe, type UserProfile } from "../services/api";
+import { checkEligibility, getMe, verifyStudent, type EligibilityCheckResponse, type UserProfile } from "../services/api";
 
 function Icon({ children }: { children: ReactNode }) {
   // Decorative icons should not be announced by screen readers; the
@@ -147,7 +147,9 @@ function Topbar({
   );
 }
 
-function MetricsSection() {
+function MetricsSection({ eligibility }: { eligibility: EligibilityCheckResponse | null }) {
+  const eligibilityKnown = eligibility !== null;
+  const eligible = eligibility?.is_eligible === true;
   return (
     <section className="dashboard-metrics dashboard-metrics-new" aria-label="Voting overview">
       <article className="metric-card metric-card-featured">
@@ -183,15 +185,15 @@ function MetricsSection() {
           <div className="metric-icon metric-icon-neutral">
             <Icon>verified_user</Icon>
           </div>
-          <span className="metric-pill metric-pill-verified">
+          <span className={`metric-pill ${eligible ? "metric-pill-verified" : ""}`}>
             <span className="metric-pill-dot" aria-hidden="true" />
-            Ready
+            {!eligibilityKnown ? "Checking" : eligible ? "Eligible" : "Not eligible"}
           </span>
         </div>
-        <h2>100%</h2>
-        <p>Profile complete</p>
+        <h2>{eligible ? "Ready" : "Review"}</h2>
+        <p>{eligibilityKnown ? eligibility.reason : "Checking your official student record"}</p>
         <a className="metric-link" href="/profile">
-          Review profile <Icon>arrow_forward</Icon>
+          View student record <Icon>arrow_forward</Icon>
         </a>
       </article>
     </section>
@@ -371,17 +373,32 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthContext();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     getMe()
-      .then((data) => {
-        if (!cancelled) setProfile(data);
+      .then(async (profileData) => {
+        let latestProfile = profileData;
+
+        try {
+          // This comparison is server-side and uses only the official students table.
+          const verification = await verifyStudent();
+          latestProfile = verification.user;
+        } catch {
+          // A mismatch is reflected by the eligibility result below; avoid exposing it here.
+        }
+
+        const eligibilityData = await checkEligibility();
+        if (!cancelled) {
+          setProfile(latestProfile);
+          setEligibility(eligibilityData);
+        }
       })
       .catch((err) => {
-        console.error("Failed to load profile:", err);
+        console.error("Failed to load voting status:", err);
         if (!cancelled) setLoadError(true);
       })
       .finally(() => {
@@ -408,7 +425,7 @@ export function DashboardPage() {
       <main className="dashboard-main dashboard-main-new">
         <Topbar firstName={firstName} greeting={greeting} onProfileClick={() => navigate("/profile")} />
 
-        <MetricsSection />
+        <MetricsSection eligibility={eligibility} />
 
         <section className="dashboard-grid dashboard-grid-new">
           <div className="dashboard-column dashboard-column-main">
