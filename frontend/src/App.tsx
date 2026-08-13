@@ -8,6 +8,7 @@ import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { StudentManagementPage } from "./pages/StudentManagementPage";
 
 import "./index.css";
 
@@ -63,6 +64,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/admin/students" element={<ProtectedRoute><StudentManagementPage /></ProtectedRoute>} />
 
           {/* ── Default Redirects ─────────────────────────────────────── */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

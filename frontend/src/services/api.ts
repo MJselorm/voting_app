@@ -124,6 +124,19 @@ export async function syncUser(payload: SyncPayload): Promise<{
   });
 }
 
+export interface ImportPreview { preview_id: string; total_rows: number; valid_rows: number; new_students: number; existing_records: number; invalid_rows: number; errors: { row: number; student_id: string | null; reason: string }[]; records: Record<string, string>[]; }
+export async function previewStudentImport(file: File): Promise<ImportPreview> {
+  const token = await getIdToken(false);
+  const form = new FormData(); form.append("file", file);
+  const response = await fetch(`${API_BASE_URL}/api/admin/students/import/preview`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+  if (!response.ok) throw { detail: (await response.json()).detail || "Preview failed." };
+  return response.json();
+}
+export async function confirmStudentImport(preview_id: string, existing_record_behavior: "update" | "skip") {
+  return authRequest<{ success: boolean; added: number; updated: number; skipped: number; failed: number; total_student_records: number }>("/api/admin/students/import/confirm", { method: "POST", body: JSON.stringify({ preview_id, existing_record_behavior }) });
+}
+export async function listAdminStudents(search = "") { return authRequest<StudentProfile[]>(`/api/admin/students${search ? `?search=${encodeURIComponent(search)}` : ""}`); }
+
 /**
  * Get the current authenticated user's profile from the backend.
  * Requires a valid Firebase ID token (attached automatically).

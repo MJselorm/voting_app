@@ -2,154 +2,101 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import Any, NamedTuple
+import re
+from dataclasses import dataclass
+from email_validator import EmailNotValidError, validate_email
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.student import Student
 
-
-class ImportResult(NamedTuple):
-    total_processed: int
-    created_count: int
-    updated_count: int
-    errors: list[str]
+REQUIRED = ("student_id", "full_name", "email", "department", "level", "class", "status")
+HEADER_MAP = {"student id": "student_id", "student_id": "student_id", "full name": "full_name", "full_name": "full_name", "email": "email", "department": "department", "level": "level", "class": "class", "status": "status"}
 
 
-def parse_and_validate_csv(csv_content: str) -> tuple[list[dict[str, str]], list[str]]:
-    """
-    Parse CSV content and validate required structure and content.
+@dataclass
+class Preview:
+    records: list[dict]
+    errors: list[dict]
+    total_rows: int
+    new_count: int
+    existing_count: int
 
-    Required columns:
-        - student_id
-        - full_name
-        - email
-        - department
-        - level
-        - class
-        - status (ACTIVE or INACTIVE)
 
-    Validates:
-        - Required header existence
-        - Duplicate student_id inside the CSV file
-        - Duplicate email inside the CSV file
-        - Non-empty values for required fields
-    """
-    errors: list[str] = []
-    records: list[dict[str, str]] = []
+def _header(value: str) -> str:
+    return HEADER_MAP.get(re.sub(r"[_\s]+", " ", (value or "").strip().lower()), "")
 
-    reader = csv.DictReader(io.StringIO(csv_content))
-    if not reader.fieldnames:
-        return [], ["CSV file is empty or missing headers."]
 
-    normalized_headers = [h.strip().lower() for h in reader.fieldnames if h]
-    required_fields = {"student_id", "full_name", "email", "department", "level", "class", "status"}
-
-    missing_fields = required_fields - set(normalized_headers)
-    if missing_fields:
-        return [], [f"CSV missing required columns: {', '.join(sorted(missing_fields))}"]
-
-    seen_student_ids: set[str] = set()
-    seen_emails: set[str] = set()
-
-    for row_idx, raw_row in enumerate(reader, start=2):  # Row 1 is header
-        row = {k.strip().lower(): (v or "").strip() for k, v in raw_row.items() if k}
-
-        sid = row.get("student_id", "")
-        name = row.get("full_name", "")
-        email = row.get("email", "").lower()
-        dept = row.get("department", "")
-        student_status = row.get("status", "").upper()
-
-        if not sid:
-            errors.append(f"Row {row_idx}: Missing required 'student_id'.")
-        elif sid.lower() in seen_student_ids:
-            errors.append(f"Row {row_idx}: Duplicate student_id '{sid}' in CSV.")
+def parse_upload(content: bytes, filename: str) -> tuple[list[dict[str, str]], list[dict]]:
+    try:
+        if filename.lower().endswith(".csv"):
+            rows = list(csv.reader(io.StringIO(content.decode("utf-8-sig"))))
+        elif filename.lower().endswith(".xlsx"):
+            from openpyxl import load_workbook
+            sheet = load_workbook(io.BytesIO(content), read_only=True, data_only=True).active
+            rows = [["" if cell is None else str(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
         else:
-            seen_student_ids.add(sid.lower())
+            return [], [{"row": 0, "student_id": None, "reason": "Only CSV and Excel (.xlsx) files are supported."}]
+    except Exception:
+        return [], [{"row": 0, "student_id": None, "reason": "The uploaded file could not be read."}]
+    if not rows:
+        return [], [{"row": 0, "student_id": None, "reason": "The uploaded file is empty."}]
+    headers = [_header(v) for v in rows[0]]
+    missing = [x for x in REQUIRED if x not in headers]
+    if missing:
+        return [], [{"row": 1, "student_id": None, "reason": f"Missing required column(s): {', '.join(missing)}"}]
+    records = []
+    for number, cells in enumerate(rows[1:], 2):
+        row = {headers[i]: (cells[i].strip() if i < len(cells) else "") for i in range(len(headers)) if headers[i]}
+        row["email"] = row.get("email", "").lower()
+        row["status"] = row.get("status", "").upper()
+        row["row"] = number
+        records.append(row)
+    return records, []
 
-        if not name:
-            errors.append(f"Row {row_idx}: Missing required 'full_name'.")
 
-        if not email:
-            errors.append(f"Row {row_idx}: Missing required 'email'.")
-        elif email in seen_emails:
-            errors.append(f"Row {row_idx}: Duplicate email '{email}' in CSV.")
+async def preview_upload(content: bytes, filename: str, db: AsyncSession) -> Preview:
+    records, errors = parse_upload(content, filename)
+    if errors and not records:
+        return Preview([], errors, 0, 0, 0)
+    seen_ids, seen_emails = set(), set()
+    existing = {s.student_id: s for s in (await db.execute(select(Student))).scalars()}
+    emails = {s.email.lower(): s.student_id for s in existing.values() if s.email}
+    new_count = existing_count = 0
+    for record in records:
+        reasons = []
+        for field in REQUIRED:
+            if not record.get(field): reasons.append(f"Missing required {field}.")
+        if record.get("email"):
+            try: validate_email(record["email"], check_deliverability=False)
+            except EmailNotValidError: reasons.append("Invalid email address.")
+        if record.get("status") not in {"ACTIVE", "INACTIVE"}: reasons.append("Status must be ACTIVE or INACTIVE.")
+        sid, email = record.get("student_id", ""), record.get("email", "")
+        if sid and sid.lower() in seen_ids: reasons.append("Duplicate Student ID inside uploaded file.")
+        if email and email in seen_emails: reasons.append("Duplicate email inside uploaded file.")
+        seen_ids.add(sid.lower()); seen_emails.add(email)
+        if email in emails and emails[email] != sid: reasons.append("Email belongs to a different existing student.")
+        if reasons:
+            record["validation_status"] = "INVALID" if not any("Duplicate" in x for x in reasons) else "DUPLICATE"
+            errors.append({"row": record["row"], "student_id": sid or None, "reason": " ".join(reasons)})
+        elif sid in existing:
+            record["validation_status"] = "EXISTING"; existing_count += 1
         else:
-            seen_emails.add(email)
-
-        if not dept:
-            errors.append(f"Row {row_idx}: Missing required 'department'.")
-        if not row.get("level", ""):
-            errors.append(f"Row {row_idx}: Missing required 'level'.")
-        if not row.get("class", ""):
-            errors.append(f"Row {row_idx}: Missing required 'class'.")
-        if student_status not in {"ACTIVE", "INACTIVE"}:
-            errors.append(f"Row {row_idx}: 'status' must be ACTIVE or INACTIVE.")
-
-        records.append({
-            "student_id": sid,
-            "full_name": name,
-            "email": email,
-            "department": dept,
-            "level": row.get("level", ""),
-            "class": row.get("class", ""),
-            "status": student_status,
-        })
-
-    return records, errors
+            record["validation_status"] = "NEW"; new_count += 1
+    return Preview(records, errors, len(records), new_count, existing_count)
 
 
-async def import_students_from_csv(csv_content: str, db: AsyncSession) -> ImportResult:
-    """
-    Import official student roster from CSV content.
-    Atomic operation: if any validation error occurs, no records are saved.
-    """
-    records, errors = parse_and_validate_csv(csv_content)
-    if errors:
-        return ImportResult(0, 0, 0, errors)
-
-    created_count = 0
-    updated_count = 0
-
-    existing_emails: set[str] = set()
+async def apply_preview(records: list[dict], behavior: str, db: AsyncSession) -> tuple[int, int, int]:
+    added = updated = skipped = 0
     for rec in records:
-        if rec["email"] in existing_emails:
-            errors.append(f"Duplicate email '{rec['email']}' in import batch.")
-        existing_emails.add(rec["email"])
-        sid = rec["student_id"]
-        result = await db.execute(select(Student).where(Student.student_id == sid))
-        existing_student = result.scalar_one_or_none()
-
-        if existing_student:
-            existing_student.full_name = rec["full_name"]
-            existing_student.email = rec["email"]
-            existing_student.department = rec["department"]
-            existing_student.level = rec["level"] or None
-            existing_student.class_ = rec["class"] or None
-            existing_student.status = rec["status"]
-            updated_count += 1
+        if rec.get("validation_status") not in {"NEW", "EXISTING"}: skipped += 1; continue
+        current = (await db.execute(select(Student).where(Student.student_id == rec["student_id"]))).scalar_one_or_none()
+        if current and behavior == "skip": skipped += 1; continue
+        if current:
+            for key in ("full_name", "email", "department", "level", "status"): setattr(current, key, rec[key])
+            current.class_ = rec["class"]; updated += 1
         else:
-            new_student = Student(
-                student_id=rec["student_id"],
-                full_name=rec["full_name"],
-                email=rec["email"],
-                department=rec["department"],
-                level=rec["level"] or None,
-                class_=rec["class"] or None,
-                status=rec["status"],
-            )
-            db.add(new_student)
-            created_count += 1
-
-    if errors:
-        await db.rollback()
-        return ImportResult(0, 0, 0, errors)
+            db.add(Student(student_id=rec["student_id"], full_name=rec["full_name"], email=rec["email"], department=rec["department"], level=rec["level"], class_=rec["class"], status=rec["status"])); added += 1
     await db.flush()
-    return ImportResult(
-        total_processed=len(records),
-        created_count=created_count,
-        updated_count=updated_count,
-        errors=[],
-    )
+    return added, updated, skipped

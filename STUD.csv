@@ -1,3 +1,6 @@
 student_id,full_name,email,department,level,class,status
 CSE2024001,John Mensah,john@university.edu,Computer Science and Engineering,200,CSE-A,ACTIVE
 FCM.41.008.110.24,Selorm Matanawui,selormmatanawui2006@gmail.com,Computer Science and Engineering,200,CSEE200,ACTIVE
+CSE2024002,Michael Owusu,michael.owusu@university.edu,Computer Science and Engineering,200,CSE-A,ACTIVE
+CSE2024003,Abigail Asante,abigail.asante@university.edu,Computer Science and Engineering,200,CSE-B,ACTIVE
+CSE2024004,Daniel Boateng,daniel.boateng@university.edu,Computer Science and Engineering,300,CSE-C,ACTIVE

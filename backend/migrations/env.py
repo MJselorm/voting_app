@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.database.base import Base  # noqa: F401
 import app.models.user   # noqa: F401 — registers User model with Base
 import app.models.student  # noqa: F401 — registers Student model with Base
+import app.models.student_import  # noqa: F401 — registers StudentImport model with Base
 
 # ── Alembic Config ────────────────────────────────────────────────────────────
 alembic_config = context.config
