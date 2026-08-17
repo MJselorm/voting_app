@@ -63,9 +63,10 @@ export const Sidebar = memo(function Sidebar({
   activeNav?: string;
   role?: UserProfile["role"];
 }) {
-  const navItems = navigationByRole[role];
-  const roleLabel = role === "SUPER_ADMIN" ? "Super Admin" : role === "ELECTION_OFFICIAL" ? "Election Official" : "Verified student";
-  const portalLabel = role === "SUPER_ADMIN" ? "System administration" : role === "ELECTION_OFFICIAL" ? "Election management" : "Student voting portal";
+  const resolvedRole = role || "STUDENT";
+  const navItems = navigationByRole[resolvedRole] || navigationByRole.STUDENT;
+  const roleLabel = resolvedRole === "SUPER_ADMIN" ? "Super Admin" : resolvedRole === "ELECTION_OFFICIAL" ? "Election Official" : "Verified student";
+  const portalLabel = resolvedRole === "SUPER_ADMIN" ? "System administration" : resolvedRole === "ELECTION_OFFICIAL" ? "Election management" : "Student voting portal";
   return (
     <aside className="dashboard-sidebar dashboard-sidebar-new">
       <div className="dashboard-sidebar-brand">
@@ -375,8 +376,8 @@ function ActivityPanel() {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { user } = useAuthContext();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const { user, profile: authProfile } = useAuthContext();
+  const [profile, setProfile] = useState<UserProfile | null>(authProfile);
   const [eligibility, setEligibility] = useState<EligibilityCheckResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -387,12 +388,14 @@ export function DashboardPage() {
       .then(async (profileData) => {
         let latestProfile = profileData;
 
-        try {
-          // This comparison is server-side and uses only the official students table.
-          const verification = await verifyStudent();
-          latestProfile = verification.user;
-        } catch {
-          // A mismatch is reflected by the eligibility result below; avoid exposing it here.
+        if (profileData.student_id && !profileData.is_verified) {
+          try {
+            // This comparison is server-side and uses only the official students table.
+            const verification = await verifyStudent();
+            latestProfile = verification.user;
+          } catch {
+            // A mismatch is reflected by the eligibility result below; avoid exposing it here.
+          }
         }
 
         const eligibilityData = await checkEligibility();

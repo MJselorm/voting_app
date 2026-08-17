@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuthContext } from "./AuthContext";
 import type { ReactNode } from "react";
 import type { UserProfile } from "../services/api";
+import { logoutUser } from "../lib/firebase";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -20,19 +21,15 @@ interface RoleProtectedRouteProps extends ProtectedRouteProps {
  * - Unauthenticated users → redirect to /login
  * - Authenticated but unverified users → redirect to /verify-email
  * - Authenticated + verified users → render children
- *
- * The current path is preserved in location state so the user can be
- * redirected back after login.
  */
 export function ProtectedRoute({
   children,
   requireVerified = true,
 }: ProtectedRouteProps) {
-  const { status } = useAuthContext();
+  const { status, isProfileLoading } = useAuthContext();
   const location = useLocation();
 
-  if (status === "loading") {
-    // Show nothing (or a spinner) while Firebase resolves the auth state.
+  if (status === "loading" || (status === "authenticated" && isProfileLoading)) {
     return (
       <div className="auth-loading-screen">
         <div className="spinner" aria-label="Loading…" />
@@ -55,12 +52,12 @@ export function ProtectedRoute({
  * PublicOnlyRoute
  *
  * Redirects authenticated users away from public-only pages
- * (login, register) to the dashboard.
+ * (login, register) to their role's dashboard.
  */
 export function PublicOnlyRoute({ children }: { children: ReactNode }) {
   const { status, profile, isProfileLoading } = useAuthContext();
 
-  if (status === "loading") {
+  if (status === "loading" || (status === "authenticated" && (isProfileLoading || !profile))) {
     return (
       <div className="auth-loading-screen">
         <div className="spinner" aria-label="Loading…" />
@@ -68,12 +65,8 @@ export function PublicOnlyRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  if (status === "authenticated" && isProfileLoading) {
-    return <div className="auth-loading-screen"><div className="spinner" aria-label="Loading…" /></div>;
-  }
-
-  if (status === "authenticated") {
-    return <Navigate to={dashboardPath(profile?.role)} replace />;
+  if (status === "authenticated" && profile) {
+    return <Navigate to={dashboardPath(profile.role)} replace />;
   }
 
   return <>{children}</>;
@@ -87,15 +80,56 @@ export function dashboardPath(role?: UserProfile["role"]): string {
 
 /** UI guard only. The API remains responsible for authorization decisions. */
 export function RoleProtectedRoute({ children, allowedRoles, requireVerified = true }: RoleProtectedRouteProps) {
-  const { status, profile, isProfileLoading } = useAuthContext();
+  const { status, profile, isProfileLoading, refreshProfile } = useAuthContext();
   const location = useLocation();
 
   if (status === "loading" || (status === "authenticated" && isProfileLoading)) {
-    return <div className="auth-loading-screen"><div className="spinner" aria-label="Loading…" /></div>;
+    return (
+      <div className="auth-loading-screen">
+        <div className="spinner" aria-label="Loading…" />
+      </div>
+    );
   }
-  if (status === "unauthenticated") return <Navigate to="/login" state={{ from: location }} replace />;
-  if (requireVerified && status === "emailNotVerified") return <Navigate to="/verify-email" replace />;
-  if (!profile) return <Navigate to="/login" replace />;
-  if (!allowedRoles.includes(profile.role)) return <Navigate to={dashboardPath(profile.role)} replace />;
+
+  if (status === "unauthenticated") {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireVerified && status === "emailNotVerified") {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  if (!profile) {
+    return (
+      <div className="auth-profile-error-container">
+        <div className="auth-profile-error-card">
+          <div className="auth-profile-error-icon" aria-hidden="true">⚠️</div>
+          <h2>Profile Unavailable</h2>
+          <p>Your account profile could not be loaded. Please ensure the voting API backend is running, then try again.</p>
+          <div className="auth-profile-error-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { void refreshProfile(); }}
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => { void logoutUser(); }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!allowedRoles.includes(profile.role)) {
+    return <Navigate to={dashboardPath(profile.role)} replace />;
+  }
+
   return <>{children}</>;
 }

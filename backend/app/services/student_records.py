@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.student import Student
@@ -8,9 +8,11 @@ from app.models.student import Student
 
 async def find_student_by_id(db: AsyncSession, student_id: str | None) -> Student | None:
     """Look up an official student record without exposing it to the client."""
-    if not student_id:
+    if not student_id or not student_id.strip():
         return None
-    result = await db.execute(select(Student).where(Student.student_id == student_id))
+    result = await db.execute(
+        select(Student).where(func.lower(Student.student_id) == student_id.strip().lower())
+    )
     return result.scalar_one_or_none()
 
 

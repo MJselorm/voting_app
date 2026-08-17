@@ -39,7 +39,7 @@ class StudentUpdate(BaseModel):
 async def get_my_student_record(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> Student:
     if not current_user.is_verified or not current_user.student_id:
         raise HTTPException(400, "Account is not yet verified.")
-    student = (await db.execute(select(Student).where(Student.student_id == current_user.student_id))).scalar_one_or_none()
+    student = (await db.execute(select(Student).where(func.lower(Student.student_id) == current_user.student_id.strip().lower()))).scalar_one_or_none()
     if not student:
         raise HTTPException(404, "Official student record not found.")
     return student
@@ -87,7 +87,7 @@ async def list_students(search: str | None = None, department: str | None = None
 
 @router.put("/admin/students/{student_id}", response_model=StudentResponse)
 async def update_student(student_id: str, payload: StudentUpdate, _: User = Depends(require_election_official), db: AsyncSession = Depends(get_db)) -> Student:
-    student = (await db.execute(select(Student).where(Student.student_id == student_id))).scalar_one_or_none()
+    student = (await db.execute(select(Student).where(func.lower(Student.student_id) == student_id.strip().lower()))).scalar_one_or_none()
     if not student: raise HTTPException(404, "Student not found.")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(student, key, value)
@@ -97,6 +97,6 @@ async def update_student(student_id: str, payload: StudentUpdate, _: User = Depe
 
 @router.delete("/admin/students/{student_id}", status_code=204, response_class=Response, response_model=None)
 async def delete_student(student_id: str, _: User = Depends(require_election_official), db: AsyncSession = Depends(get_db)) -> None:
-    student = (await db.execute(select(Student).where(Student.student_id == student_id))).scalar_one_or_none()
+    student = (await db.execute(select(Student).where(func.lower(Student.student_id) == student_id.strip().lower()))).scalar_one_or_none()
     if not student: raise HTTPException(404, "Student not found.")
     await db.delete(student)

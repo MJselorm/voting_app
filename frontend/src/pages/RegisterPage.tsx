@@ -96,6 +96,11 @@ export function RegisterPage() {
           student_id: form.studentId.trim() || undefined,
         });
       } catch (syncErr) {
+        try {
+          await firebaseUser.delete();
+        } catch {
+          // Best-effort cleanup so user can retry registration
+        }
         setGlobalError(parseApiError(syncErr));
         return;
       }

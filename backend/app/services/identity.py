@@ -61,3 +61,24 @@ def email_is_allowed(email: str | None) -> bool:
     if settings.email_patterns:
         return any(re.fullmatch(pattern, normalized) for pattern in settings.email_patterns)
     return True
+
+
+def normalize_student_id(student_id: str | None) -> str:
+    """
+    Normalize a student ID by trimming whitespace and converting to uppercase.
+    """
+    if not student_id:
+        return ""
+    return student_id.strip().upper()
+
+
+def student_ids_match(id1: str | None, id2: str | None) -> bool:
+    """
+    Check if two student IDs match after normalization.
+    """
+    norm1 = normalize_student_id(id1)
+    norm2 = normalize_student_id(id2)
+    if not norm1 or not norm2:
+        return False
+    return norm1 == norm2
+

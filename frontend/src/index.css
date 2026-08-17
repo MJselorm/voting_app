@@ -1,3 +1,4 @@
+
 /* ============================================================
    Global Styles — UniVote Academic Voting System
    Design: Institutional Light Modern Palette (Deep Teal & Slate)
@@ -10,6 +11,7 @@
   --color-primary: #032b37;
   --color-primary-hover: #021e27;
   --color-primary-light: #064557;
+  --color-secondary: #0d5c75;
   --color-accent-teal: #0d5c75;
   --color-accent-blue: #2563eb;
   --color-accent-sky: #e0f2fe;
@@ -74,6 +76,21 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+.auth-loading-screen {
+  flex: 1;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg);
+}
+
+.auth-loading-screen .spinner {
+  width: 34px;
+  height: 34px;
+  border-color: #cbd5e1;
+  border-top-color: var(--color-primary);
 }
 
 .app-header {
@@ -2511,4 +2528,59 @@ button:focus-visible {
 
 .mt-3 {
   margin-top: 0.75rem;
+}
+
+/* ── Auth profile error screen ──────────────────────────────── */
+.auth-profile-error-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--color-bg);
+}
+
+.auth-profile-error-card {
+  max-width: 460px;
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.auth-profile-error-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.auth-profile-error-card h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-text-title);
+  margin: 0;
+}
+
+.auth-profile-error-card p {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.auth-profile-error-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.auth-profile-error-actions .btn {
+  flex: 1;
 }

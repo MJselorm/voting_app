@@ -1,16 +1,24 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FirebaseError } from "firebase/app";
 import { loginUser, signInWithGoogle } from "../lib/firebase";
 import { getMe, syncUser } from "../services/api";
 import { dashboardPath } from "../auth/ProtectedRoute";
+import { useAuthContext } from "../auth/AuthContext";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import bannerImg from "../assets/banner.jpg";
 
+function parseLoginError(error: any): string {
+  const code = error?.code || "";
+  const message = error?.message || "";
 
-function parseLoginError(error: FirebaseError): string {
-  switch (error.code) {
+  switch (code) {
+    case "auth/operation-not-allowed":
+      return "Google Sign-In is disabled in your Firebase console. Enable Google in Firebase Console → Authentication → Sign-in method.";
+    case "auth/unauthorized-domain":
+      return "This domain is not authorised in Firebase. Add your domain in Firebase Console → Authentication → Settings → Authorized domains.";
+    case "auth/account-exists-with-different-credential":
+      return "An account already exists with this email address using a different sign-in method. Try signing in with email and password.";
     case "auth/user-not-found":
     case "auth/invalid-credential":
     case "auth/wrong-password":
@@ -25,15 +33,21 @@ function parseLoginError(error: FirebaseError): string {
       return "The email address is not valid.";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
-      return "Google sign-in was cancelled.";
+      return "Google sign-in window was closed.";
+    case "auth/popup-blocked":
+      return "Your browser blocked the Google sign-in window. Please allow popups and try again.";
     default:
-      return "Login failed. Please check your credentials and try again.";
+      if (code) return `Authentication error [${code}]: ${message}`;
+      if (error?.detail) return String(error.detail);
+      if (message) return message;
+      return "Authentication failed. Please check your credentials and try again.";
   }
 }
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { updateProfile } = useAuthContext();
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
 
   const [email, setEmail] = useState("");
@@ -51,23 +65,27 @@ export function LoginPage() {
       const credential = await signInWithGoogle();
       const firebaseUser = credential.user;
 
+      const fullName = firebaseUser.displayName?.trim() || firebaseUser.email?.split("@")[0] || "Student";
       try {
-        await syncUser({
-          full_name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Student",
+        const syncRes = await syncUser({
+          full_name: fullName,
           email: firebaseUser.email || "",
         });
-      } catch (syncErr) {
+        updateProfile(syncRes.user);
+        navigate(from === "/dashboard" ? dashboardPath(syncRes.user.role) : from, { replace: true });
+      } catch (syncErr: any) {
         console.error("Backend sync failed on Google login:", syncErr);
+        const profile = await getMe().catch(() => null);
+        if (profile) {
+          updateProfile(profile);
+          navigate(from === "/dashboard" ? dashboardPath(profile.role) : from, { replace: true });
+        } else {
+          setError(syncErr?.detail || "Backend profile sync failed after Google sign-in.");
+        }
       }
-
-      const profile = await getMe();
-      navigate(from === "/dashboard" ? dashboardPath(profile.role) : from, { replace: true });
-    } catch (err) {
-      if (err instanceof FirebaseError) {
-        setError(parseLoginError(err));
-      } else {
-        setError("Google sign-in failed. Please try again.");
-      }
+    } catch (err: any) {
+      console.error("Google login error:", err);
+      setError(parseLoginError(err));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -93,23 +111,24 @@ export function LoginPage() {
         return;
       }
 
+      const fullName = firebaseUser.displayName?.trim() || email.split("@")[0] || "Student";
       try {
-        await syncUser({
-          full_name: firebaseUser.displayName || email.split("@")[0],
+        const syncRes = await syncUser({
+          full_name: fullName,
           email: firebaseUser.email || email,
         });
-      } catch (syncErr) {
+        updateProfile(syncRes.user);
+        navigate(from === "/dashboard" ? dashboardPath(syncRes.user.role) : from, { replace: true });
+      } catch (syncErr: any) {
         console.error("Backend sync failed on login:", syncErr);
+        const profile = await getMe().catch(() => null);
+        if (profile) {
+          updateProfile(profile);
+          navigate(from === "/dashboard" ? dashboardPath(profile.role) : from, { replace: true });
+        }
       }
-
-      const profile = await getMe();
-      navigate(from === "/dashboard" ? dashboardPath(profile.role) : from, { replace: true });
-    } catch (err) {
-      if (err instanceof FirebaseError) {
-        setError(parseLoginError(err));
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+    } catch (err: any) {
+      setError(parseLoginError(err));
     } finally {
       setIsLoading(false);
     }

@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { confirmStudentImport, listAdminStudents, previewStudentImport, type ImportPreview, type StudentProfile } from "../services/api";
 
 export function StudentManagementPage() {
   const [preview, setPreview] = useState<ImportPreview | null>(null); const [students, setStudents] = useState<StudentProfile[]>([]);
   const [message, setMessage] = useState(""); const [mode, setMode] = useState<"update" | "skip">("update");
   const upload = async (file?: File) => { if (!file) return; try { setPreview(await previewStudentImport(file)); setMessage(""); } catch (e: any) { setMessage(e.detail || "Could not read upload."); } };
-  const confirm = async () => { if (!preview) return; try { const result = await confirmStudentImport(preview.preview_id, mode); setMessage(`Import complete — Added: ${result.added}, Updated: ${result.updated}, Skipped: ${result.skipped}, Failed: ${result.failed}.`); setPreview(null); } catch (e: any) { setMessage(e.detail || "Import failed."); } };
-  const search = async (value: string) => { try { setStudents(await listAdminStudents(value)); } catch (e: any) { setMessage(e.detail || "Could not load students."); } };
+  const search = async (value: string = "") => { try { setStudents(await listAdminStudents(value)); } catch (e: any) { setMessage(e.detail || "Could not load students."); } };
+  const confirm = async () => { if (!preview) return; try { const result = await confirmStudentImport(preview.preview_id, mode); setMessage(`Import complete — Added: ${result.added}, Updated: ${result.updated}, Skipped: ${result.skipped}, Failed: ${result.failed}.`); setPreview(null); await search(""); } catch (e: any) { setMessage(e.detail || "Import failed."); } };
+
+  useEffect(() => {
+    search("");
+  }, []);
+
   return <div className="student-management-content"><p>Upload an official roster, review validation results, then confirm the import.</p>
     <section className="auth-card-container" style={{ maxWidth: 1100 }}><h2>Upload Students</h2><input type="file" accept=".csv,.xlsx" onChange={(e) => upload(e.target.files?.[0])} /> <a href="data:text/csv;charset=utf-8,Student ID,Full Name,Email,Department,Level,Class,Status%0ACSE2024001,John Mensah,john%40university.edu,Computer Science and Engineering,200,CSE-A,ACTIVE" download="student-import-template.csv">Download CSV template</a>
     {message && <p className="alert alert-info">{message}</p>}

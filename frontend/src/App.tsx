@@ -79,6 +79,18 @@ export default function App() {
 
 function HomeRedirect() {
   const { profile, isProfileLoading, status } = useAuthContext();
-  if (status === "authenticated" && isProfileLoading) return <div className="auth-loading-screen"><div className="spinner" /></div>;
-  return <Navigate to={status === "authenticated" ? dashboardPath(profile?.role) : "/login"} replace />;
+  if (status === "loading" || (status === "authenticated" && (isProfileLoading || !profile))) {
+    return (
+      <div className="auth-loading-screen">
+        <div className="spinner" aria-label="Loading…" />
+      </div>
+    );
+  }
+  if (status === "emailNotVerified") {
+    return <Navigate to="/verify-email" replace />;
+  }
+  if (status === "authenticated" && profile) {
+    return <Navigate to={dashboardPath(profile.role)} replace />;
+  }
+  return <Navigate to="/login" replace />;
 }

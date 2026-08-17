@@ -258,7 +258,7 @@ export function ProfilePage() {
                 )}
 
                 <form onSubmit={handleSaveProfile} className="profile-form">
-                  {isStudent && <div className="form-group">
+                  <div className="form-group">
                     <label htmlFor="fullNameInput">Full Name</label>
                     <div className="input-wrapper">
                       <Icon>person</Icon>
@@ -272,7 +272,7 @@ export function ProfilePage() {
                         required
                       />
                     </div>
-                  </div>}
+                  </div>
 
                   <div className="form-group">
                     <label htmlFor="emailInput">Email Address</label>
@@ -427,10 +427,10 @@ export function ProfilePage() {
                   <hr className="divider" />
 
                   <div className="meta-list">
-                    {isStudent && <div className="meta-item">
+                    <div className="meta-item">
                       <span className="meta-label">Account Created</span>
                       <span className="meta-val">{createdDate}</span>
-                    </div>}
+                    </div>
 
                     <div className="meta-item">
                       <span className="meta-label">Student Verification</span>

@@ -32,6 +32,8 @@ VERIFICATION_FAILURE_MESSAGE = (
 )
 
 
+from app.services.identity import names_match, student_ids_match
+
 @router.post("/sync", response_model=UserSyncResponse)
 async def sync_user(
     payload: UserSyncRequest,
@@ -48,14 +50,12 @@ async def sync_user(
         await db.execute(select(User).where(User.firebase_uid == firebase_uid))
     ).scalar_one_or_none()
     if existing_user is not None:
-        # Firebase users created before their profile was fully synced can have
-        # no student ID. Fill that missing identity data from the trusted,
-        # authenticated registration payload so they can be verified.
-        if payload.student_id and payload.student_id != existing_user.student_id:
+        # Fill missing student ID if passed, but preserve existing student ID and verification state.
+        if payload.student_id and not student_ids_match(payload.student_id, existing_user.student_id):
             student_id_owner = (
                 await db.execute(
                     select(User).where(
-                        User.student_id == payload.student_id,
+                        func.lower(User.student_id) == payload.student_id.strip().lower(),
                         User.id != existing_user.id,
                     )
                 )
@@ -65,14 +65,12 @@ async def sync_user(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="This Student ID is already registered.",
                 )
-            existing_user.student_id = payload.student_id
+            existing_user.student_id = payload.student_id.strip()
             existing_user.is_verified = False
             existing_user.verified_at = None
 
-        if payload.full_name.strip() and payload.full_name != existing_user.full_name:
-            existing_user.full_name = payload.full_name
-            existing_user.is_verified = False
-            existing_user.verified_at = None
+        if payload.full_name.strip() and not existing_user.full_name:
+            existing_user.full_name = payload.full_name.strip()
 
         await db.flush()
         await db.refresh(existing_user)
@@ -81,18 +79,20 @@ async def sync_user(
     if token_email and token_email != payload.email.strip().lower():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Registration email does not match the authenticated Firebase account.")
 
-    if (await db.execute(select(User).where(User.email == payload.email.strip().lower()))).scalar_one_or_none():
+    if (await db.execute(select(User).where(func.lower(User.email) == payload.email.strip().lower()))).scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
 
     if payload.student_id:
-        if (await db.execute(select(User).where(User.student_id == payload.student_id))).scalar_one_or_none():
+        if (await db.execute(select(User).where(func.lower(User.student_id) == payload.student_id.strip().lower()))).scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This Student ID is already registered.")
+
+    full_name = payload.full_name.strip() or (token_email.split("@")[0] if token_email else "Student")
 
     new_user = User(
         firebase_uid=firebase_uid,
-        full_name=payload.full_name,
+        full_name=full_name,
         email=payload.email.strip().lower(),
-        student_id=payload.student_id,
+        student_id=payload.student_id.strip() if payload.student_id else None,
         role=UserRole.STUDENT,
         is_active=True,
         is_verified=False,
@@ -138,7 +138,7 @@ async def get_admin_dashboard_stats(
             func.lower(Student.department) == settings.DEFAULT_ELIGIBLE_DEPARTMENT.strip().lower()
         )
     eligible_voters = select(func.count()).select_from(User).join(
-        Student, User.student_id == Student.student_id
+        Student, func.lower(User.student_id) == func.lower(Student.student_id)
     ).where(*eligible_conditions).scalar_subquery()
 
     stats = (await db.execute(select(

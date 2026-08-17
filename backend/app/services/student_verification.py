@@ -4,7 +4,7 @@ from typing import NamedTuple
 
 from app.models.student import Student
 from app.models.user import User
-from app.services.identity import names_match, verify_email_match
+from app.services.identity import names_match, student_ids_match, verify_email_match
 
 
 class IdentityComparisonResult(NamedTuple):
@@ -20,7 +20,7 @@ def compare_identity(user: User, official_student: Student | None) -> IdentityCo
     """
     if not user.student_id or official_student is None:
         return IdentityComparisonResult(False, "student_record_not_found")
-    if user.student_id != official_student.student_id:
+    if not student_ids_match(user.student_id, official_student.student_id):
         return IdentityComparisonResult(False, "student_id_mismatch")
     if not verify_email_match(user.email, official_student.email):
         return IdentityComparisonResult(False, "email_mismatch")

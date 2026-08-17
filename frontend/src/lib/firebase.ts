@@ -66,6 +66,10 @@ export async function loginUser(
 }
 
 const googleProvider = new GoogleAuthProvider();
+// Always show Google's account chooser. Without this, Google may silently use
+// a previously selected browser account, leaving the voter no chance to choose
+// the correct university account.
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
 /**
  * Sign in or sign up with Google popup.

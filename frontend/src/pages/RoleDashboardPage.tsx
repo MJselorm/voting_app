@@ -15,7 +15,8 @@ export function RoleDashboardPage({ role, page, children }: { role: Exclude<User
   const { profile, user } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
-  const resolvedPage = page || navigation[role].find(([, path]) => path === location.pathname)?.[0] || "Workspace";
+  const roleNav = navigation[role] || [];
+  const resolvedPage = page || roleNav.find(([, path]) => path === location.pathname)?.[0] || "Workspace";
   const name = profile?.full_name || user?.displayName || "User";
   const title = role === "SUPER_ADMIN" ? "Super Admin" : "Election Official";
   const isDashboard = resolvedPage === "Dashboard";
