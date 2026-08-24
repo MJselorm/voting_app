@@ -14,6 +14,8 @@ from app.core.firebase_admin import initialize_firebase
 from app.api.eligibility import router as eligibility_router
 from app.api.auth import router as auth_router
 from app.api.students import router as students_router
+from app.api.elections import router as elections_router
+from app.api.admin import router as admin_router
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -64,6 +66,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(eligibility_router)
 app.include_router(students_router)
+app.include_router(elections_router)
+app.include_router(admin_router)
 
 
 # ── Health Check ─────────────────────────────────────────────────────────────

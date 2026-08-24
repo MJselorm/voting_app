@@ -79,8 +79,16 @@ async def sync_user(
     if token_email and token_email != payload.email.strip().lower():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Registration email does not match the authenticated Firebase account.")
 
-    if (await db.execute(select(User).where(func.lower(User.email) == payload.email.strip().lower()))).scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists.")
+    existing_by_email = (
+        await db.execute(select(User).where(func.lower(User.email) == payload.email.strip().lower()))
+    ).scalar_one_or_none()
+    if existing_by_email is not None:
+        existing_by_email.firebase_uid = firebase_uid
+        if payload.full_name.strip() and not existing_by_email.full_name:
+            existing_by_email.full_name = payload.full_name.strip()
+        await db.flush()
+        await db.refresh(existing_by_email)
+        return UserSyncResponse(user=existing_by_email, created=False)
 
     if payload.student_id:
         if (await db.execute(select(User).where(func.lower(User.student_id) == payload.student_id.strip().lower()))).scalar_one_or_none():

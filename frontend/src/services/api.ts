@@ -61,7 +61,13 @@ async function authRequest<T>(
     let detail = "An unexpected error occurred.";
     try {
       const errorData = await response.json();
-      detail = errorData?.detail || detail;
+      if (typeof errorData?.detail === "string") {
+        detail = errorData.detail;
+      } else if (Array.isArray(errorData?.detail)) {
+        detail = errorData.detail.map((e: any) => e.msg || JSON.stringify(e)).join(", ");
+      } else if (errorData?.message) {
+        detail = errorData.message;
+      }
     } catch {
       // Response body was not JSON
     }
@@ -230,4 +236,202 @@ export async function getStudentProfile(): Promise<StudentProfile> {
  */
 export async function healthCheck(): Promise<{ status: string }> {
   return publicRequest("/health");
+}
+
+// ── Election Types & API Functions ──────────────────────────────────────────
+
+export type ElectionStatus =
+  | "DRAFT"
+  | "PENDING_APPROVAL"
+  | "OFFICIAL_REVIEW"
+  | "SUPER_ADMIN_FINAL_APPROVAL"
+  | "APPROVED"
+  | "SCHEDULED"
+  | "LIVE"
+  | "ENDED"
+  | "CANCELLED";
+
+export type ResultVisibility =
+  | "HIDDEN_UNTIL_ENDED"
+  | "OFFICIALS_DURING_VOTING"
+  | "PUBLIC_LIVE";
+
+export interface PositionItem {
+  id?: string;
+  name: string;
+  description?: string | null;
+  display_order: number;
+  number_of_winners: number;
+  created_at?: string;
+}
+
+export interface EligibilityCriteria {
+  departments: string[];
+  levels: string[];
+  classes: string[];
+  statuses: string[];
+}
+
+export interface OfficialUser {
+  id: string;
+  full_name: string;
+  email: string;
+  role: "STUDENT" | "ELECTION_OFFICIAL" | "SUPER_ADMIN";
+  is_active: boolean;
+}
+
+export interface OfficialAssignment {
+  id: string;
+  election_id: string;
+  user_id: string;
+  assigned_at: string;
+  user?: OfficialUser;
+}
+
+export interface ElectionApprovalItem {
+  id: string;
+  election_id: string;
+  user_id: string;
+  approval_status: "PENDING" | "APPROVED" | "REJECTED";
+  comment?: string | null;
+  approved_at?: string | null;
+  created_at: string;
+  user?: OfficialUser;
+}
+
+export interface ElectionAuditLogItem {
+  id: string;
+  election_id: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  action: string;
+  details?: Record<string, any> | null;
+  created_at: string;
+}
+
+export interface ElectionListItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  department: string;
+  election_type: string;
+  start_at: string | null;
+  end_at: string | null;
+  status: ElectionStatus;
+  result_visibility: ResultVisibility;
+  created_by: string;
+  creator_name?: string | null;
+  positions_count: number;
+  officials_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ElectionDetail {
+  id: string;
+  name: string;
+  description?: string | null;
+  department: string;
+  election_type: string;
+  start_at: string | null;
+  end_at: string | null;
+  status: ElectionStatus;
+  result_visibility: ResultVisibility;
+  eligibility_criteria: EligibilityCriteria;
+  created_by: string;
+  creator?: OfficialUser;
+  created_at: string;
+  updated_at: string;
+
+  positions: PositionItem[];
+  official_assignments: OfficialAssignment[];
+  approvals: ElectionApprovalItem[];
+  audit_logs: ElectionAuditLogItem[];
+  estimated_voters: number;
+}
+
+export interface ElectionPayload {
+  name: string;
+  description?: string | null;
+  department: string;
+  election_type: string;
+  start_at?: string | null;
+  end_at?: string | null;
+  result_visibility?: ResultVisibility;
+  eligibility_criteria?: EligibilityCriteria;
+  positions?: PositionItem[];
+  official_user_ids?: string[];
+}
+
+export async function listElections(): Promise<ElectionListItem[]> {
+  return authRequest<ElectionListItem[]>("/api/elections");
+}
+
+export async function getElection(id: string): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>(`/api/elections/${id}`);
+}
+
+export async function getEligibleOfficials(): Promise<OfficialUser[]> {
+  return authRequest<OfficialUser[]>("/api/elections/officials");
+}
+
+export async function estimateEligibility(
+  criteria: EligibilityCriteria
+): Promise<{ estimated_voters: number; criteria_summary: Record<string, any> }> {
+  return authRequest<{ estimated_voters: number; criteria_summary: Record<string, any> }>(
+    "/api/elections/eligibility-estimate",
+    {
+      method: "POST",
+      body: JSON.stringify({ eligibility_criteria: criteria }),
+    }
+  );
+}
+
+export async function createElection(payload: ElectionPayload): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>("/api/elections", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateElection(
+  id: string,
+  payload: Partial<ElectionPayload>
+): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>(`/api/elections/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitElectionForApproval(id: string): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>(`/api/elections/${id}/submit`, {
+    method: "POST",
+  });
+}
+
+export async function approveElection(
+  id: string,
+  comment?: string
+): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>(`/api/elections/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ comment }),
+  });
+}
+
+export async function rejectElection(
+  id: string,
+  reason: string
+): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>(`/api/elections/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function finalApproveElection(id: string): Promise<ElectionDetail> {
+  return authRequest<ElectionDetail>(`/api/elections/${id}/final-approve`, {
+    method: "POST",
+  });
 }

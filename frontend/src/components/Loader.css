@@ -1,0 +1,72 @@
+/* 3D Cube Loader - From Uiverse.io by bociKond */
+.cube-loader-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  perspective: 1000px;
+}
+
+.uiverse-cube-spinner {
+  width: 70.4px;
+  height: 70.4px;
+  --clr: rgb(247, 197, 159);
+  --clr-alpha: rgba(247, 197, 159, 0.15);
+  animation: uiverse-cube-spin 1.6s infinite ease;
+  transform-style: preserve-3d;
+  position: relative;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.uiverse-cube-spinner > div {
+  background-color: var(--clr-alpha);
+  height: 100%;
+  position: absolute;
+  width: 100%;
+  border: 3.5px solid var(--clr);
+  box-sizing: border-box;
+  backface-visibility: visible;
+}
+
+.uiverse-cube-spinner div:nth-of-type(1) {
+  transform: translateZ(-35.2px) rotateY(180deg);
+}
+
+.uiverse-cube-spinner div:nth-of-type(2) {
+  transform: rotateY(-270deg) translateX(50%);
+  transform-origin: top right;
+}
+
+.uiverse-cube-spinner div:nth-of-type(3) {
+  transform: rotateY(270deg) translateX(-50%);
+  transform-origin: center left;
+}
+
+.uiverse-cube-spinner div:nth-of-type(4) {
+  transform: rotateX(90deg) translateY(-50%);
+  transform-origin: top center;
+}
+
+.uiverse-cube-spinner div:nth-of-type(5) {
+  transform: rotateX(-90deg) translateY(50%);
+  transform-origin: bottom center;
+}
+
+.uiverse-cube-spinner div:nth-of-type(6) {
+  transform: translateZ(35.2px);
+}
+
+@keyframes uiverse-cube-spin {
+  0% {
+    transform: rotate(45deg) rotateX(-25deg) rotateY(25deg);
+  }
+
+  50% {
+    transform: rotate(45deg) rotateX(-385deg) rotateY(25deg);
+  }
+
+  100% {
+    transform: rotate(45deg) rotateX(-385deg) rotateY(385deg);
+  }
+}

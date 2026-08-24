@@ -10,8 +10,12 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { StudentManagementPage } from "./pages/StudentManagementPage";
 import { RoleDashboardPage } from "./pages/RoleDashboardPage";
+import { ElectionsPage } from "./pages/ElectionsPage";
+import { ElectionWizardPage } from "./pages/ElectionWizardPage";
+import { ElectionDetailPage } from "./pages/ElectionDetailPage";
 import { useAuthContext } from "./auth/AuthContext";
 
+import { LoadingScreen } from "./components/LoadingScreen";
 import "./index.css";
 
 export default function App() {
@@ -61,11 +65,22 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* ── Official Routes ────────────────────────────────────────── */}
           <Route path="/official/dashboard" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" /></RoleProtectedRoute>} />
           <Route path="/official/students" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" page="Student Records"><StudentManagementPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/official/elections" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" page="Elections"><ElectionsPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/official/elections/create" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" page="Elections"><ElectionWizardPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/official/elections/:id/edit" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" page="Elections"><ElectionWizardPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/official/elections/:id" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" page="Elections"><ElectionDetailPage /></RoleDashboardPage></RoleProtectedRoute>} />
           <Route path="/official/:page" element={<RoleProtectedRoute allowedRoles={["ELECTION_OFFICIAL", "SUPER_ADMIN"]}><RoleDashboardPage role="ELECTION_OFFICIAL" /></RoleProtectedRoute>} />
+
+          {/* ── Super Admin Routes ──────────────────────────────────────── */}
           <Route path="/admin/dashboard" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" /></RoleProtectedRoute>} />
           <Route path="/admin/students" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Student Records"><StudentManagementPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/admin/elections" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionsPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/admin/elections/create" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionWizardPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/admin/elections/:id/edit" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionWizardPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/admin/elections/:id" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionDetailPage /></RoleDashboardPage></RoleProtectedRoute>} />
           <Route path="/admin/:page" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" /></RoleProtectedRoute>} />
 
           {/* ── Default Redirects ─────────────────────────────────────── */}
@@ -80,11 +95,7 @@ export default function App() {
 function HomeRedirect() {
   const { profile, isProfileLoading, status } = useAuthContext();
   if (status === "loading" || (status === "authenticated" && (isProfileLoading || !profile))) {
-    return (
-      <div className="auth-loading-screen">
-        <div className="spinner" aria-label="Loading…" />
-      </div>
-    );
+    return <LoadingScreen message="Redirecting to portal…" />;
   }
   if (status === "emailNotVerified") {
     return <Navigate to="/verify-email" replace />;

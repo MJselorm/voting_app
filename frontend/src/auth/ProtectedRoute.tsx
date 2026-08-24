@@ -3,6 +3,7 @@ import { useAuthContext } from "./AuthContext";
 import type { ReactNode } from "react";
 import type { UserProfile } from "../services/api";
 import { logoutUser } from "../lib/firebase";
+import { LoadingScreen } from "../components/LoadingScreen";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -30,11 +31,7 @@ export function ProtectedRoute({
   const location = useLocation();
 
   if (status === "loading" || (status === "authenticated" && isProfileLoading)) {
-    return (
-      <div className="auth-loading-screen">
-        <div className="spinner" aria-label="Loading…" />
-      </div>
-    );
+    return <LoadingScreen message="Verifying authentication…" />;
   }
 
   if (status === "unauthenticated") {
@@ -58,11 +55,7 @@ export function PublicOnlyRoute({ children }: { children: ReactNode }) {
   const { status, profile, isProfileLoading } = useAuthContext();
 
   if (status === "loading" || (status === "authenticated" && (isProfileLoading || !profile))) {
-    return (
-      <div className="auth-loading-screen">
-        <div className="spinner" aria-label="Loading…" />
-      </div>
-    );
+    return <LoadingScreen message="Loading dashboard…" />;
   }
 
   if (status === "authenticated" && profile) {
@@ -84,11 +77,7 @@ export function RoleProtectedRoute({ children, allowedRoles, requireVerified = t
   const location = useLocation();
 
   if (status === "loading" || (status === "authenticated" && isProfileLoading)) {
-    return (
-      <div className="auth-loading-screen">
-        <div className="spinner" aria-label="Loading…" />
-      </div>
-    );
+    return <LoadingScreen message="Loading portal…" />;
   }
 
   if (status === "unauthenticated") {

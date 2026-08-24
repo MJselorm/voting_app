@@ -6,6 +6,7 @@ import { dashboardPath } from "../auth/ProtectedRoute";
 import { useAuthContext } from "../auth/AuthContext";
 import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
+import { Loader } from "../components/Loader";
 import bannerImg from "../assets/banner.jpg";
 
 function parseLoginError(error: any): string {
@@ -136,6 +137,34 @@ export function LoginPage() {
 
   return (
     <>
+      {(isLoading || isGoogleLoading) && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(248, 250, 252, 0.88)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            gap: "2.5rem",
+          }}
+        >
+          <Loader />
+          <p
+            style={{
+              color: "var(--color-primary, #032b37)",
+              fontWeight: 600,
+              fontSize: "1rem",
+              letterSpacing: "0.025em",
+            }}
+          >
+            {isGoogleLoading ? "Connecting to Google…" : "Signing in…"}
+          </p>
+        </div>
+      )}
       <Header />
       <main className="page-container">
         <div className="auth-card-split">

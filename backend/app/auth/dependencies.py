@@ -71,8 +71,19 @@ async def get_current_user(
         )
 
     # ── Step 4: Look up PostgreSQL user ───────────────────────────────────
+    from sqlalchemy import func
+
     result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
     user = result.scalar_one_or_none()
+
+    if user is None:
+        token_email = (decoded_token.get("email") or "").strip().lower()
+        if token_email:
+            email_result = await db.execute(select(User).where(func.lower(User.email) == token_email))
+            user = email_result.scalar_one_or_none()
+            if user is not None:
+                user.firebase_uid = firebase_uid
+                await db.flush()
 
     if user is None:
         raise HTTPException(
