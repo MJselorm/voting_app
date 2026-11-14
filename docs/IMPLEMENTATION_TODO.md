@@ -1,4 +1,4 @@
-# IMPLEMENTATION_TODO.md — Multi-Tenant Implementation Master Checklist
+# IMPLEMENTATION_TODO.md — Phased Implementation Master Checklist
 
 This document is the authoritative task tracker for transitioning UniVote from the single-institution prototype to the target multi-tenant platform.
 
@@ -11,11 +11,11 @@ This document is the authoritative task tracker for transitioning UniVote from t
 
 ---
 
-## Phase 1: Architecture Foundation
+## Phase 1: Architecture and Multi-Tenancy Foundation
 
 - [x] **Audit existing backend and frontend architecture**
   - **Status**: `IMPLEMENTED`
-  - **Relevant Files**: `backend/app/main.py`, `frontend/src/App.tsx`, `docs/architecture/`
+  - **Relevant Files**: `backend/app/main.py`, `frontend/src/App.tsx`, `docs/SYSTEM_ARCHITECTURE.md`
   - **Outcome**: Complete inspection performed; current single-institution constraints documented.
 - [x] **Review existing database schema**
   - **Status**: `IMPLEMENTED`
@@ -45,7 +45,7 @@ This document is the authoritative task tracker for transitioning UniVote from t
 
 ---
 
-## Phase 2: Universal Accounts & Membership
+## Phase 2: Universal Accounts and Organization Membership
 
 - [x] **Review existing authentication implementation**
   - **Status**: `IMPLEMENTED`
@@ -107,7 +107,7 @@ This document is the authoritative task tracker for transitioning UniVote from t
 
 ---
 
-## Phase 4: Voter Eligibility Management
+## Phase 4: Voter Eligibility and Register Management
 
 - [x] **CSV voter imports**
   - **Status**: `NEEDS REVIEW`
@@ -230,7 +230,7 @@ This document is the authoritative task tracker for transitioning UniVote from t
 
 ---
 
-## Phase 7: Security & Governance
+## Phase 7: Ballot Security and Governance
 
 - [ ] **Organization data isolation enforcement**
   - **Status**: `NOT STARTED`
@@ -259,7 +259,7 @@ This document is the authoritative task tracker for transitioning UniVote from t
 
 ---
 
-## Phase 8: Mobile Applications & Expansion
+## Phase 8: Mobile Applications and Future Integrations
 
 - [ ] **Android application development**
   - **Status**: `NOT STARTED`

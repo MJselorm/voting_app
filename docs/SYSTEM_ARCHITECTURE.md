@@ -1,27 +1,27 @@
 # SYSTEM_ARCHITECTURE.md — Multi-Tenant System Architecture
 
-This document specifies the target multi-tenant system architecture of **UniVote**, outlining the structural transition from the current single-institution prototype to a scalable, multi-organization election and polling platform.
+This document specifies the target multi-tenant system architecture of **UniVote**, outlining the structural transition from the prototype to a multi-organization voting and polling platform.
 
 ---
 
 ## 1. Architectural Vision & Scope
 
-UniVote is transforming into a universal multi-tenant voting and polling platform serving diverse institutions:
-- **Universities & Colleges** (Institutional ballots, student councils, faculty boards)
-- **Academic Departments & Cohorts** (Department associations, course reps)
-- **Student Clubs & Fraternities/Sororities**
-- **Companies & Corporate Boards** (Staff reps, shareholder resolutions)
-- **Professional Associations & Unions** (Executive elections, policy ratifications)
+UniVote is an organizational voting platform serving diverse membership-based bodies:
+- **Universities & Colleges**: Student Representative Council (SRC) ballots, faculty boards, course representative voting.
+- **Academic Departments**: Departmental executive elections, committee polls.
+- **Student Associations & Clubs**: Sports clubs, debate societies, student unions.
+- **Companies & Corporate Boards**: Staff representatives, shareholder and board resolutions.
+- **Professional Associations & Trade Unions**: Executive officer elections, constitution ratifications.
 
-Each organization operates as an isolated tenant within a shared, high-availability cloud infrastructure.
+Each organization operates as an independent tenant within a shared, centralized infrastructure with strict data isolation.
 
 ```mermaid
 graph TD
-    Client["Client Applications<br>(React Web / Future iOS & Android)"] --> Gateway["API Gateway / FastAPI Backend"]
+    Client["Client Applications<br>(React 19 Web SPA / Future iOS & Android)"] --> Gateway["API Gateway / FastAPI Backend"]
     
     subgraph "Central Platform Layer"
         Gateway --> AuthSvc["Universal Account & Auth Service<br>(Firebase Auth + JWT Claims)"]
-        Gateway --> OrgSvc["Multi-Tenant Isolation & Routing"]
+        Gateway --> OrgSvc["Multi-Tenant Isolation & Context Binding"]
     end
     
     subgraph "Domain Engines"
@@ -31,7 +31,7 @@ graph TD
     end
     
     subgraph "Persistence Layer (PostgreSQL)"
-        FormalElec --> CentralDB[("PostgreSQL Database<br>(Tenant-Scoped Schemas / organization_id Partitioning)")]
+        FormalElec --> CentralDB[("PostgreSQL Database<br>(Tenant-Scoped via organization_id)")]
         QuickPolls --> CentralDB
         MemberSvc --> CentralDB
     end
@@ -41,8 +41,8 @@ graph TD
 
 ## 2. Multi-Tenant Architectural Topology
 
-UniVote employs a **Shared Database, Shared Schema with Strict Row-Level / Query-Level Tenant Isolation**:
-- Every organization-scoped table contains an indexed `organization_id UUID NOT NULL REFERENCES organizations(id)`.
+UniVote employs a **Shared Database, Shared Schema with Column-Level Tenant Isolation**:
+- Every organization-scoped table contains an indexed foreign key: `organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE`.
 - FastAPI route dependencies and SQLAlchemy query builders automatically bind and filter queries to the active tenant scope (`current_organization`).
 - Tenant isolation is authoritatively enforced at the backend dependency and query layers.
 
@@ -81,7 +81,7 @@ sequenceDiagram
 
 ---
 
-## 4. Current vs. Target Architecture
+## 4. Current Prototype vs. Target Architecture
 
 | Component | Current Prototype Implementation | Target Multi-Tenant Architecture |
 |---|---|---|
