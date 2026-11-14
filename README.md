@@ -1,77 +1,128 @@
-# UniVote — University Voting System
+# UniVote — Multi-Tenant University & Organization Voting Platform
 
-UniVote is a full-stack university voting application with Firebase authentication, FastAPI authorization, PostgreSQL/Supabase student records, and role-based dashboards.
+UniVote is a multi-tenant electronic voting and election management platform designed for higher education institutions, academic departments, student associations, corporate organizations, and professional bodies.
 
-## Current functionality
+The platform provides a centralized, high-performance infrastructure with strict organization-level data isolation, universal user accounts, and two distinct voting experiences: **Formal Elections** and **Quick Polls**.
 
-- Firebase email/password and Google authentication
-- Email verification, password reset, and PostgreSQL user-profile sync
-- Student-record CSV/XLSX preview and import for authorized staff
-- Student identity verification and eligibility checks against official records
-- Role-aware UI and protected routes for `STUDENT`, `ELECTION_OFFICIAL`, and `SUPER_ADMIN`
-- Super Admin dashboard totals loaded from the database: uploaded student records, registered users, registered voters, and eligible voters
+---
 
-Election creation, candidate management, ballot casting, and final results are still planned features.
+## Documentation Navigation Index
 
-## Architecture
+For comprehensive architecture, development, and operational specifications, consult the dedicated documentation in the repository and the **`docs/`** directory:
 
-```text
-React + TypeScript (Vite)
-        │ Firebase ID token
-        ▼
-FastAPI + Firebase Admin SDK
-        ▼
-PostgreSQL / Supabase
-```
+### Architecture & Agent Manuals
+- **[AGENTS.md](AGENTS.md)** — **Primary instruction manual for AI coding agents and human contributors**. Covers multi-tenant rules, scoped roles, and non-negotiable coding standards.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — End-to-end multi-tenant system architecture, platform topology, and deployment design.
+- **[PROJECT_MAP.md](PROJECT_MAP.md)** — Complete repository map detailing every directory, file, and module responsibility across frontend and backend.
+- **[DECISIONS.md](DECISIONS.md)** — Architectural Decision Records (ADRs) explaining verified technical choices and trade-offs.
 
-The browser uses the role only to choose the appropriate interface. FastAPI verifies every Firebase token and enforces authorization server-side.
+### API & Database Specifications
+- **[API_REFERENCE.md](API_REFERENCE.md)** — Complete REST API reference detailing all endpoints, request bodies, response schemas, and authorization requirements.
+- **[DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)** — Relational database schema specification with table definitions, column types, foreign keys, and indexes.
 
-## Roles and routes
+### Task Management & Changelog
+- **[TASK_TRACKER.md](TASK_TRACKER.md)** — High-level development progress tracker distinguishing completed prototype features from target multi-tenant roadmap items.
+- **[CHANGELOG.md](CHANGELOG.md)** — Version release notes and development history.
 
-| Role | Dashboard | Key navigation |
-|---|---|---|
-| `STUDENT` | `/dashboard` | Elections, My Votes, Notifications, Profile |
-| `ELECTION_OFFICIAL` | `/official/dashboard` | Elections, Student Records, Candidates, Results, Profile |
-| `SUPER_ADMIN` | `/admin/dashboard` | Elections, Student Records, Users, Officials, Approvals, Departments, Results, Audit Logs, Settings, Profile |
+### Comprehensive Multi-Tenant Guides (`docs/`)
+- **[docs/README.md](docs/README.md)** — Complete documentation directory index.
+- **Architecture**:
+  - [System Architecture](docs/architecture/SYSTEM_ARCHITECTURE.md)
+  - [Multi-Tenancy & Data Isolation](docs/architecture/MULTI_TENANCY.md)
+  - [Universal Accounts & Membership](docs/architecture/USER_AND_MEMBERSHIP_ARCHITECTURE.md)
+  - [Scoped Role & Permission Model](docs/architecture/ROLE_AND_PERMISSION_MODEL.md)
+  - [Dual Voting Engine Architecture](docs/architecture/VOTING_ARCHITECTURE.md)
+  - [Ballot Security & Secrecy](docs/architecture/BALLOT_SECURITY.md)
+  - [Database Architecture](docs/architecture/DATABASE_ARCHITECTURE.md)
+- **Functional Modules**:
+  - [Organization Management](docs/modules/ORGANIZATION_MANAGEMENT.md)
+  - [Membership Management](docs/modules/MEMBERSHIP_MANAGEMENT.md)
+  - [Voter Eligibility & Roster Ingestion](docs/modules/VOTER_ELIGIBILITY.md)
+  - [Formal Elections Module](docs/modules/FORMAL_ELECTIONS.md)
+  - [Quick Polls Module](docs/modules/QUICK_POLLS.md)
+  - [Results & Approvals](docs/modules/RESULTS_AND_APPROVALS.md)
+- **Technical & Planning**:
+  - [Implementation Master Checklist (TODO)](docs/planning/IMPLEMENTATION_TODO.md)
+  - [Current Implementation Status & Gap Analysis](docs/planning/CURRENT_IMPLEMENTATION_STATUS.md)
+  - [Product Roadmap](docs/planning/PRODUCT_ROADMAP.md)
+  - [Development Phases](docs/planning/DEVELOPMENT_PHASES.md)
+  - [Future Expansion (Mobile & SIS)](docs/planning/FUTURE_EXPANSION.md)
+  - [Architectural Decision Records](docs/decisions/ARCHITECTURAL_DECISIONS.md)
 
-Students cannot access official/admin UI routes. More importantly, backend dependencies protect APIs: student-record administration requires an Election Official or Super Admin, while dashboard totals require a Super Admin.
+---
 
-## Prerequisites
+## Target Multi-Tenant Architecture Highlights
 
-- Python 3.11+
-- Node.js 18+
-- Firebase project with Email/Password authentication enabled
-- Supabase/PostgreSQL database
+1. **Universal User Accounts & Multi-Tenancy**:
+   - Users register globally using any valid email address or Google OAuth.
+   - A single user account can join and hold memberships in multiple organizations concurrently.
+   - Membership verification cross-checks submitted institutional identifiers (Student ID, Staff ID) against the organization's authoritative roster.
+2. **Six Scoped Roles**:
+   - **Platform Super Admin**: Platform-wide infrastructure, tenant creation & approval, cross-org auditing.
+   - **Organization Admin**: Institutional settings, departments, roster uploads, membership verification, staff role assignments.
+   - **Election Official**: Configuration of formal elections, candidate vetting, balloting oversight, and interim turnout monitoring.
+   - **Election Super Admin**: Final certification and sign-off on formal election results.
+   - **Member / Voter**: Verified organizational member eligible to vote in ballots matching their criteria.
+   - **Poll Creator**: Authorized member or staff member allowed to configure lightweight informal Quick Polls.
+3. **Two Distinct Voting Modules**:
+   - **Formal Elections**: Multi-position governance ballots with candidate vetting, FPTP balloting, vote editing before close, and certified result sign-off.
+   - **Quick Polls**: Lightweight informal voting activities (e.g. Best Dressed, Favorite Lecturer) leveraging existing verified memberships without requiring spreadsheet roster uploads.
+4. **Ballot Secrecy & Security**:
+   - Physical and logical separation between voter participation ledgers and anonymized cast ballots.
+   - Comprehensive, immutable audit logging tracking all administrative configuration and approval actions.
 
-## Setup
+---
 
-### Environment variables
+## Current Prototype Implementation Status
+
+The existing repository codebase implements a verified single-institution prototype with the following functional components:
+- **Authentication**: Universal Firebase email/password and Google OAuth authentication with cryptographic public-key verification via FastAPI's Firebase Admin SDK.
+- **Roster Ingestion**: Spreadsheet parsing for `.csv` and `.xlsx` files with dry-run conflict detection, duplicate identification, and import audit logging.
+- **Student Verification**: Multi-factor identity matching verifying student ID, normalized legal name, and email against the official roster.
+- **Election Configuration**: Multi-step election setup wizard supporting contested offices (`ElectionPosition`), staff delegation (`ElectionOfficialAssignment`), and approval pipelines (`ElectionApproval`).
+- **Live Statistics**: Exact single-query SQL aggregation for dashboard statistics backed by partial indexes.
+
+*Note: Multi-tenant schemas (`organizations`, `organization_memberships`), Quick Polls, candidate nomination vetting, and ballot casting are documented as target development items and are not yet implemented in code.*
+
+---
+
+## Technology Stack
+
+- **Frontend**: React 19, TypeScript, Vite, React Router DOM v7 (Target Hosting: **Vercel**).
+- **Backend**: Python 3.11+ / 3.13, FastAPI, SQLAlchemy 2.0 (AsyncIO), Pydantic v2 (Target Hosting: **Render**).
+- **Database**: PostgreSQL on Neon Serverless / Supabase, managed via Alembic.
+- **Authentication**: Firebase Authentication + Firebase Admin SDK.
+- **Future Mobile Clients**: iOS and Android mobile applications consuming the same FastAPI REST APIs.
+
+---
+
+## Setup & Local Development
+
+### 1. Environment Configuration
 
 Create `frontend/.env`:
-
 ```env
-VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-app-id
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
 Create `backend/.env`:
-
 ```env
-DATABASE_URL=postgresql://postgres:password@host:5432/postgres
+DATABASE_URL=postgresql://user:password@host:5432/neondb?sslmode=require
 FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...@your-project.iam.gserviceaccount.com
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@your-project.iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ALLOWED_ORIGINS=http://localhost:5173
 DEFAULT_ELIGIBLE_DEPARTMENT=Computer Science and Engineering
 APP_ENV=development
 ```
 
-### Install and run
+### 2. Install and Run
 
 ```bash
 # Backend
@@ -85,67 +136,27 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 ```bash
-# Frontend, in another terminal
+# Frontend (in another terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. API documentation is available at `http://localhost:8000/docs` in development.
+Open `http://localhost:5173`. Swagger API documentation is available at `http://localhost:8000/docs` in development mode.
 
-## Important API endpoints
+---
 
-All routes below, except `/health`, require `Authorization: Bearer <firebase_id_token>`.
-
-| Method | Path | Access | Purpose |
-|---|---|---|---|
-| `GET` | `/health` | Public | Health check |
-| `POST` | `/api/auth/sync` | Authenticated | Create/sync the PostgreSQL user profile |
-| `GET` | `/api/auth/me` | Authenticated | Current user profile and role |
-| `POST` | `/api/auth/verify-student` | Authenticated | Verify against the official student record |
-| `POST` | `/api/eligibility/check` | Authenticated | Check voting eligibility |
-| `GET` | `/api/auth/admin/dashboard-stats` | Super Admin | Exact dashboard counts in one response |
-| `POST` | `/api/admin/students/import/preview` | Official/Admin | Validate an upload before import |
-| `POST` | `/api/admin/students/import/confirm` | Official/Admin | Commit an approved student import |
-| `GET` | `/api/admin/students` | Official/Admin | Search official student records |
-
-## Dashboard statistics
-
-`GET /api/auth/admin/dashboard-stats` returns one exact-count response:
-
-```json
-{
-  "uploaded_student_records": 1250,
-  "registered_users": 82,
-  "registered_voters": 74,
-  "eligible_voters": 61,
-  "verified_voters": 59
-}
-```
-
-The frontend displays the current required metrics. The endpoint uses database `COUNT()` queries only and does not download tables to calculate totals. Focused indexes are included in Alembic migration `007_dashboard_stats_indexes`.
-
-## Database records
-
-- `users`: application accounts linked to a Firebase UID; includes role, active status, verification state, and optional student ID.
-- `students`: official university records imported from CSV/XLSX; includes academic details and active/inactive status.
-- `student_imports`: audit records for imports.
-
-New registrations always receive the `STUDENT` role. The client cannot set roles; trusted administrative workflows must assign staff roles directly through the backend/database process.
-
-## Validation
+## Quality & Validation Commands
 
 ```bash
+# Verify backend Python code compilation
 cd backend
 python -m compileall -q app
 
+# Run automated tests
+pytest tests/ -v
+
+# Verify frontend TypeScript compilation and build
 cd ../frontend
 npm run build
 ```
-
-## Security notes
-
-- Passwords are handled by Firebase and are never stored in PostgreSQL.
-- FastAPI verifies Firebase tokens with Firebase Admin SDK.
-- Frontend route guards improve UX; backend dependencies are the authority for access control.
-- Keep `.env` files and Firebase service-account secrets out of Git.
