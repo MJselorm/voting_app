@@ -16,6 +16,7 @@ const STATUS_CONFIG: Record<
   LIVE: { label: "Live", bg: "#fee2e2", color: "#991b1b", badgeClass: "badge-live" },
   ENDED: { label: "Ended", bg: "#f3f4f6", color: "#6b7280", badgeClass: "badge-ended" },
   CANCELLED: { label: "Cancelled", bg: "#fef2f2", color: "#b91c1c", badgeClass: "badge-cancelled" },
+  REJECTED: { label: "Rejected", bg: "#fef2f2", color: "#b91c1c", badgeClass: "badge-cancelled" },
 };
 
 export function ElectionsPage() {

@@ -291,9 +291,16 @@ async def get_admin_approvals_overview(db: AsyncSession) -> AdminApprovalsOvervi
                 )
             )
 
-        # Extract rejection comment if rejected
+        # A rejection deliberately returns an election to DRAFT so its creator
+        # can correct it. Therefore a returned item is identified by a rejected
+        # approval record, not by a non-existent ElectionStatus.REJECTED value.
+        was_rejected = any(
+            apprv.approval_status == "REJECTED" for apprv in election.approvals
+        )
+
+        # Extract rejection comment for returned elections.
         rejection_reason: str | None = None
-        if election.status == ElectionStatus.REJECTED:
+        if was_rejected:
             rejected_apprv = next(
                 (app for app in election.approvals if app.approval_status == "REJECTED"), None
             )
@@ -322,7 +329,7 @@ async def get_admin_approvals_overview(db: AsyncSession) -> AdminApprovalsOvervi
 
         if election.status in (ElectionStatus.APPROVED, ElectionStatus.SCHEDULED):
             approved_list.append(elec_resp)
-        elif election.status == ElectionStatus.REJECTED:
+        elif was_rejected and election.status == ElectionStatus.DRAFT:
             rejected_list.append(elec_resp)
         elif is_ready:
             ready_list.append(elec_resp)

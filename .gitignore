@@ -63,3 +63,4 @@ logs/
 # Alembic (keep env.py, not auto-generated)
 # ========================
 backend/migrations/versions/*.pyc
+.neon

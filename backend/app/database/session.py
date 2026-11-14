@@ -8,6 +8,9 @@ from app.core.config import settings
 
 engine = create_async_engine(
     settings.async_database_url,
+    # Neon requires TLS.  asyncpg expects this as a driver argument rather
+    # than the libpq-only `sslmode=require` query parameter.
+    connect_args={"ssl": True},
     echo=not settings.is_production,  # Log SQL only in development
     pool_pre_ping=True,               # Detect stale connections automatically
     pool_size=5,

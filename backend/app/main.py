@@ -8,8 +8,10 @@ from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.core.config import settings
+from app.database.session import engine
 from app.core.firebase_admin import initialize_firebase
 from app.api.eligibility import router as eligibility_router
 from app.api.auth import router as auth_router
@@ -73,5 +75,12 @@ app.include_router(admin_router)
 # ── Health Check ─────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"], summary="Health check")
 async def health_check() -> dict:
-    """Simple health check for deployment platforms (Render, etc.)."""
-    return {"status": "ok", "env": settings.APP_ENV}
+    """Verify the Neon-backed database is reachable by the running API."""
+    async with engine.connect() as connection:
+        await connection.execute(text("SELECT 1"))
+    return {
+        "status": "ok",
+        "env": settings.APP_ENV,
+        "database": "connected",
+        "realtime_configured": settings.neon_realtime_enabled,
+    }

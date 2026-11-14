@@ -13,6 +13,7 @@ import { RoleDashboardPage } from "./pages/RoleDashboardPage";
 import { ElectionsPage } from "./pages/ElectionsPage";
 import { ElectionWizardPage } from "./pages/ElectionWizardPage";
 import { ElectionDetailPage } from "./pages/ElectionDetailPage";
+import { ApprovalsPage } from "./pages/ApprovalsPage";
 import { useAuthContext } from "./auth/AuthContext";
 
 import { LoadingScreen } from "./components/LoadingScreen";
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/admin/elections/create" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionWizardPage /></RoleDashboardPage></RoleProtectedRoute>} />
           <Route path="/admin/elections/:id/edit" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionWizardPage /></RoleDashboardPage></RoleProtectedRoute>} />
           <Route path="/admin/elections/:id" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Elections"><ElectionDetailPage /></RoleDashboardPage></RoleProtectedRoute>} />
+          <Route path="/admin/approvals" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" page="Approvals"><ApprovalsPage /></RoleDashboardPage></RoleProtectedRoute>} />
           <Route path="/admin/:page" element={<RoleProtectedRoute allowedRoles={["SUPER_ADMIN"]}><RoleDashboardPage role="SUPER_ADMIN" /></RoleProtectedRoute>} />
 
           {/* ── Default Redirects ─────────────────────────────────────── */}

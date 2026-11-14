@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode, memo } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { logoutUser } from "../lib/firebase";
 import { useAuthContext } from "../auth/AuthContext";
-import { checkEligibility, getMe, verifyStudent, type EligibilityCheckResponse, type UserProfile } from "../services/api";
+import { checkEligibility, type EligibilityCheckResponse, type UserProfile } from "../services/api";
 
 function Icon({ children }: { children: ReactNode }) {
   // Decorative icons should not be announced by screen readers; the
@@ -384,25 +384,12 @@ export function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getMe()
-      .then(async (profileData) => {
-        let latestProfile = profileData;
-
-        if (profileData.student_id && !profileData.is_verified) {
-          try {
-            // This comparison is server-side and uses only the official students table.
-            const verification = await verifyStudent();
-            latestProfile = verification.user;
-          } catch {
-            // A mismatch is reflected by the eligibility result below; avoid exposing it here.
-          }
-        }
-
-        const eligibilityData = await checkEligibility();
-        if (!cancelled) {
-          setProfile(latestProfile);
-          setEligibility(eligibilityData);
-        }
+    // AuthContext already loaded the account profile before this protected page
+    // mounts. Avoid repeating profile and verification calls here: verification
+    // is an explicit action on the profile page, not a dashboard side effect.
+    checkEligibility()
+      .then((eligibilityData) => {
+        if (!cancelled) setEligibility(eligibilityData);
       })
       .catch((err) => {
         console.error("Failed to load voting status:", err);
@@ -415,6 +402,10 @@ export function DashboardPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setProfile(authProfile);
+  }, [authProfile]);
 
   const handleLogout = async () => {
     await logoutUser();

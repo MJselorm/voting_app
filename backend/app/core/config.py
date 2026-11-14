@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from urllib.parse import urlsplit, urlunsplit
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = BACKEND_ROOT.parent
 
 
 class Settings(BaseSettings):
@@ -12,13 +17,24 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Keep application/Firebase settings in backend/.env, while allowing
+        # `neon deploy` to supply DATABASE_URL and Realtime credentials from
+        # the repository-level .env.local file it manages.
+        # Later files override earlier ones, so Neon is the DB source of truth.
+        env_file=(BACKEND_ROOT / ".env", PROJECT_ROOT / ".env.local"),
         env_file_encoding="utf-8",
         case_sensitive=True,
+        # Neon also writes helpful connection and branch metadata which this
+        # FastAPI process does not need to parse.
+        extra="ignore",
     )
 
     # ── Database ──────────────────────────────────────────────────────────
     DATABASE_URL: str
+    # Supplied by `neon deploy` when Realtime is enabled. These remain
+    # server-side and are never exposed to the Vite client.
+    NEON_REALTIME_URL: str | None = None
+    NEON_REALTIME_SECRET: str | None = None
 
     # ── Firebase Admin SDK ────────────────────────────────────────────────
     FIREBASE_PROJECT_ID: str
@@ -47,8 +63,20 @@ class Settings(BaseSettings):
         """
         parts = urlsplit(self.DATABASE_URL)
         if parts.scheme == "postgresql":
-            return urlunsplit(("postgresql+asyncpg", parts.netloc, parts.path, parts.query, parts.fragment))
+            # Neon/libpq URLs include `channel_binding=require`.  It is valid
+            # for libpq (and Alembic's psycopg2) but not an asyncpg connection
+            # option, so exclude it for SQLAlchemy's async driver.
+            query = urlencode(
+                [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
+                 if key not in {"channel_binding", "sslmode"}]
+            )
+            return urlunsplit(("postgresql+asyncpg", parts.netloc, parts.path, query, parts.fragment))
         return self.DATABASE_URL
+
+    @property
+    def neon_realtime_enabled(self) -> bool:
+        """Whether Neon Realtime credentials were provisioned for this app."""
+        return bool(self.NEON_REALTIME_URL and self.NEON_REALTIME_SECRET)
 
     @property
     def firebase_private_key_decoded(self) -> str:

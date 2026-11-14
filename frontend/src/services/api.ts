@@ -1,6 +1,14 @@
 import { getIdToken } from "../lib/firebase";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(operation: Promise<T>, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(message)), REQUEST_TIMEOUT_MS);
+    operation.then(resolve, reject).finally(() => window.clearTimeout(timeout));
+  });
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,7 +50,12 @@ async function authRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = await getIdToken(false); // Use cached token to prevent unnecessary network delay
+  // Firebase token refreshes and network requests can otherwise remain pending
+  // indefinitely, leaving protected routes on their loading screen.
+  const token = await withTimeout(
+    getIdToken(false),
+    "Authentication timed out. Please check your connection and try again.",
+  );
 
 
   const headers: HeadersInit = {
@@ -52,10 +65,13 @@ async function authRequest<T>(
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  const response = await withTimeout(
+    fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    }),
+    "The voting API did not respond. Please ensure the backend is running and try again.",
+  );
 
   if (!response.ok) {
     let detail = "An unexpected error occurred.";
@@ -249,7 +265,8 @@ export type ElectionStatus =
   | "SCHEDULED"
   | "LIVE"
   | "ENDED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "REJECTED";
 
 export type ResultVisibility =
   | "HIDDEN_UNTIL_ENDED"
@@ -433,5 +450,55 @@ export async function rejectElection(
 export async function finalApproveElection(id: string): Promise<ElectionDetail> {
   return authRequest<ElectionDetail>(`/api/elections/${id}/final-approve`, {
     method: "POST",
+  });
+}
+
+export interface ApprovalReviewer {
+  official_id: string;
+  full_name: string;
+  email: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  comment?: string | null;
+  reviewed_at?: string | null;
+}
+
+export interface ApprovalElection {
+  id: string;
+  name: string;
+  description?: string | null;
+  department: string;
+  election_type: string;
+  start_at?: string | null;
+  status: ElectionStatus;
+  created_at: string;
+  positions_count: number;
+  estimated_voters: number;
+  total_assigned_officials: number;
+  approved_officials_count: number;
+  is_ready_for_final_approval: boolean;
+  reviewers: ApprovalReviewer[];
+  rejection_reason?: string | null;
+}
+
+export interface ApprovalsOverview {
+  ready_for_final_approval: ApprovalElection[];
+  under_official_review: ApprovalElection[];
+  recently_approved: ApprovalElection[];
+  rejected: ApprovalElection[];
+  counts: { ready: number; in_review: number; approved: number; rejected: number; total_active: number };
+}
+
+export function getApprovalsOverview(): Promise<ApprovalsOverview> {
+  return authRequest("/api/admin/approvals");
+}
+
+export function adminFinalApproveElection(id: string): Promise<ElectionDetail> {
+  return authRequest(`/api/admin/approvals/${id}/final-approve`, { method: "POST" });
+}
+
+export function adminRejectElection(id: string, reason: string): Promise<ElectionDetail> {
+  return authRequest(`/api/admin/approvals/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
