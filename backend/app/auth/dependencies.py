@@ -1,131 +1,107 @@
-from __future__ import annotations
-
-import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Annotated, Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from firebase_admin import auth as firebase_auth
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
-from app.core.firebase_admin import verify_firebase_token
+from app.auth.firebase import verify_firebase_id_token
 from app.database.session import get_db
 from app.models.user import User
 
-logger = logging.getLogger(__name__)
-
-# Extracts Bearer token from the Authorization header.
-# auto_error=False lets us return a custom 401 instead of FastAPI's default.
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-async def get_verified_firebase_token(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict:
-    if credentials is None or not credentials.credentials:
+@dataclass(frozen=True)
+class FirebaseIdentity:
+    uid: str
+    email: str
+    full_name: str | None
+
+
+def get_firebase_claims(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+) -> dict[str, Any]:
+    if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Provide a valid Firebase ID token.",
+            detail="A Firebase ID token is required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = credentials.credentials
-    try:
-        return await verify_firebase_token(token)
-    except firebase_auth.ExpiredIdTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired. Please log in again.", headers={"WWW-Authenticate": "Bearer"})
-    except firebase_auth.RevokedIdTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked. Please log in again.", headers={"WWW-Authenticate": "Bearer"})
-    except (firebase_auth.InvalidIdTokenError, Exception) as exc:
-        logger.warning("Token verification failed: %s", exc)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token.", headers={"WWW-Authenticate": "Bearer"})
+    return verify_firebase_id_token(credentials.credentials)
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: AsyncSession = Depends(get_db),
+def get_verified_identity(
+    claims: Annotated[dict[str, Any], Depends(get_firebase_claims)],
+) -> FirebaseIdentity:
+    uid = claims.get("uid")
+    email = claims.get("email")
+    if not isinstance(uid, str) or not uid or not isinstance(email, str) or not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The Firebase ID token is missing required identity claims.",
+        )
+    if claims.get("email_verified") is not True:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Verify your email address before continuing.",
+        )
+    name = claims.get("name")
+    return FirebaseIdentity(
+        uid=uid,
+        email=email.strip().lower(),
+        full_name=name.strip() if isinstance(name, str) and name.strip() else None,
+    )
+
+
+def get_recently_authenticated_identity(
+    claims: Annotated[dict[str, Any], Depends(get_firebase_claims)],
+) -> FirebaseIdentity:
+    identity = get_verified_identity(claims)
+    auth_time = claims.get("auth_time")
+    now = int(datetime.now(timezone.utc).timestamp())
+    if (
+        isinstance(auth_time, bool)
+        or not isinstance(auth_time, int)
+        or auth_time > now + 60
+        or now - auth_time > 300
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reauthenticate before deleting your account.",
+        )
+    return identity
+
+
+def get_active_user(
+    identity: Annotated[FirebaseIdentity, Depends(get_verified_identity)],
+    db: Annotated[Session, Depends(get_db)],
 ) -> User:
-    """
-    FastAPI dependency — authenticates and returns the current application user.
-
-    Flow:
-        1. Read Authorization header.
-        2. Extract Bearer token.
-        3. Verify token cryptographically via Firebase Admin SDK.
-        4. Extract Firebase UID from the verified token.
-        5. Look up the corresponding PostgreSQL User record.
-        6. Return the User or raise 401/403.
-
-    Security:
-        - Missing token → 401
-        - Invalid / expired / malformed token → 401
-        - Firebase UID not found in PostgreSQL → 401
-        - Inactive account → 403
-    """
-    decoded_token = await get_verified_firebase_token(credentials)
-    firebase_uid: str = decoded_token.get("uid", "")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token payload missing UID.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # ── Step 4: Look up PostgreSQL user ───────────────────────────────────
-    from sqlalchemy import func
-
-    result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        token_email = (decoded_token.get("email") or "").strip().lower()
-        if token_email:
-            email_result = await db.execute(select(User).where(func.lower(User.email) == token_email))
-            user = email_result.scalar_one_or_none()
-            if user is not None:
-                user.firebase_uid = firebase_uid
-                await db.flush()
-
+    user = db.scalar(select(User).where(User.firebase_uid == identity.uid))
     if user is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account not found. Please complete registration.",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application account is not synchronized. Sign in again.",
         )
-
-    # ── Step 5: Account status check ──────────────────────────────────────
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account has been deactivated. Please contact support.",
+            detail="This application account is inactive.",
         )
-
     return user
 
 
-async def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """
-    Dependency that additionally requires the user to have SUPER_ADMIN role.
-    Use on admin-only endpoints.
-    """
-    from app.models.user import UserRole
-
-    if current_user.role != UserRole.SUPER_ADMIN:
+def get_platform_super_admin(
+    user: Annotated[User, Depends(get_active_user)],
+) -> User:
+    if not user.is_platform_super_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required.",
+            detail="Platform Super Admin access is required.",
         )
-    return current_user
-
-
-async def require_election_official(current_user: User = Depends(get_current_user)) -> User:
-    """
-    Dependency that requires ELECTION_OFFICIAL or SUPER_ADMIN role.
-    """
-    from app.models.user import UserRole
-
-    if current_user.role not in (UserRole.ELECTION_OFFICIAL, UserRole.SUPER_ADMIN):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Election official access required.",
-        )
-    return current_user
+    return user

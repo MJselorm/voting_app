@@ -1,49 +1,24 @@
-from __future__ import annotations
+from functools import lru_cache
+from collections.abc import Generator
 
-from collections.abc import AsyncGenerator
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from app.core.config import settings
-
-engine = create_async_engine(
-    settings.async_database_url,
-    # Neon requires TLS.  asyncpg expects this as a driver argument rather
-    # than the libpq-only `sslmode=require` query parameter.
-    connect_args={"ssl": True},
-    echo=not settings.is_production,  # Log SQL only in development
-    pool_pre_ping=True,               # Detect stale connections automatically
-    pool_size=5,
-    max_overflow=5,
-    pool_recycle=1800,
-    pool_timeout=30,
-)
-
-# Session factory — yields AsyncSession objects.
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
-)
+from app.core.config import get_database_url
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    FastAPI dependency that provides an async database session.
+@lru_cache(maxsize=1)
+def get_session_factory() -> sessionmaker[Session]:
+    engine = create_engine(
+        get_database_url(),
+        pool_pre_ping=True,
+    )
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
-    Usage:
-        @router.get("/example")
-        async def example(db: AsyncSession = Depends(get_db)):
-            ...
-    """
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+
+def get_db() -> Generator[Session, None, None]:
+    session = get_session_factory()()
+    try:
+        yield session
+    finally:
+        session.close()

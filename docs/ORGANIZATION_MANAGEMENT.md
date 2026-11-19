@@ -1,52 +1,62 @@
-# ORGANIZATION_MANAGEMENT.md — Tenant Governance & Administration
+# Organisation Management — Backend Foundation
 
-This document defines the organization lifecycle, administrative workflows, and delegation tools in **UniVote**.
+This document records the implemented organisation-management backend foundation. It does not describe membership, invitation, voter-register, election, poll, or voting functionality; those remain separate stages.
 
----
+## Data model
 
-## 1. Organization Onboarding Lifecycle
+Alembic revision `0002_organization_foundation` follows `0001_create_users` and adds:
 
-The onboarding of a new organization follows a managed verification process:
+- `organizations`: organisation profile, unique slug, type, status, creator, approver, approval time, and timestamps.
+- `organization_requests`: submitted profile/supporting details, requester, review state/reason, reviewer, resulting organisation, and timestamps. Requests remain separate from active organisations until approval.
+- `organization_management_assignments`: user-to-organisation `ORGANISATION_OWNER` / `ORGANISATION_ADMIN` assignments. A unique constraint prevents duplicate user assignments; a partial unique index allows only one owner.
+- `organization_audit_logs`: application event records for submissions, review decisions, direct creation, initial management assignments/handovers, and suspension/restoration. No API for editing audit events is exposed.
+- `users.is_platform_super_admin`: default-false platform-scoped authorization flag.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Rep as Organization Representative
-    actor PSA as Platform Super Admin
-    participant API as FastAPI Backend
-    participant DB as PostgreSQL
+Foreign keys preserve provenance: organisation creators and assigned managers are restricted from account deletion while referenced; requester/reviewer/approver/audit actor references are nullable with `SET NULL`; management assignments cascade only if their organisation is deleted. No organisation deletion endpoint is implemented.
 
-    Rep->>API: 1. Submits Organization Request (Name, Slug, Contact, Admin Email)
-    API->>DB: INSERT INTO organizations (status='PENDING_REVIEW')
-    PSA->>API: 2. Reviews pending organizations in Platform Admin Console
-    PSA->>API: 3. Approves organization & designates Initial Organization Admin
-    API->>DB: UPDATE organizations SET status='ACTIVE'
-    API->>DB: INSERT INTO organization_memberships (role='ORGANIZATION_ADMIN', status='ACTIVE')
-    API-->>Rep: 4. Activation email sent with access to Organization Admin Console
-```
+Organisation types: `UNIVERSITY`, `DEPARTMENT`, `COMPANY`, `ASSOCIATION`, `CLUB`, `OTHER`.
 
----
+Organisation statuses: `PENDING_APPROVAL`, `ACTIVE`, `REJECTED`, `SUSPENDED`, `ARCHIVED`. Requests independently use `PENDING_APPROVAL`, `APPROVED`, or `REJECTED`. Approval creates an `ACTIVE` organisation and links it to the request.
 
-## 2. Organization Admin Responsibilities
+## Authentication and permissions
 
-Once activated, the **Organization Admin** manages all day-to-day operations:
+All endpoints use the existing Firebase bearer-token verification and active Neon user dependency. Platform administration additionally requires `users.is_platform_super_admin = true`, enforced by FastAPI—not request payloads or frontend state. There is deliberately no API to grant this flag. Bootstrap/provision platform administrators using a trusted operator-controlled database process; never expose self-promotion.
 
-### 2.1 Institutional Profile & Branding
-- Organization display name, slug, official logo URL, and primary branding colors.
-- Custom institutional fields (e.g. "Faculty", "Campus Location", "Admission Cohort").
-- Institutional verification policies (e.g. allowed email domain patterns such as `@st.ug.edu.gh`).
+Organisation details are visible only to a Platform Super Admin or a user with an assignment for that organisation. Approval assigns the request's active requester as its initial owner. A requester receives no management assignment before approval. Direct creation and management changes are Platform Super Admin only.
 
-### 2.2 Departments & Membership Groups
-- Creation and management of academic departments, colleges, student clubs, or business units.
-- Group hierarchies used for targeted voter eligibility filtering.
+Platform-level authority and organisation management are distinct records/scopes. In “retain platform management” mode, the acting Super Admin is explicitly assigned as the initial organisation owner. In “assign owner” mode, the selected existing active UniVote user becomes owner. A later handover demotes other existing owners to organisation admins and removes the acting Super Admin's organisation assignment; it never changes the Super Admin's platform flag. This foundation does not implement a general membership system or self-service role delegation.
 
-### 2.3 Voter Register & Roster Ingestion
-- Uploading and updating official rosters via `.csv` or `.xlsx` spreadsheets.
-- Reviewing dry-run import previews, duplicate detection flags, and syntax errors.
-- Committing validated rosters to `organization_voter_registers`.
+## API
 
-### 2.4 Staff Delegations & Role Assignments
-- Appointing **Election Officials** to configure and supervise formal elections.
-- Designating the **Election Super Admin** for result certification.
-- Granting **Poll Creator** privileges to authorized members, course reps, or club executives.
-- Resolving escalated identity mismatches in `MANUAL_REVIEW`.
+| Method and path | Access | Purpose |
+|---|---|---|
+| `POST /api/v1/organizations/requests` | Verified active user | Submit a pending request |
+| `GET /api/v1/organizations/requests/me` | Verified active user | List only the caller's requests |
+| `GET /api/v1/organizations/{organization_id}` | Platform Super Admin or assigned manager | Read authorized organisation details |
+| `GET /api/v1/admin/organizations` | Platform Super Admin | Paginated platform-wide list; optional `status` filter |
+| `GET /api/v1/admin/organization-requests` | Platform Super Admin | Paginated requests; defaults to pending |
+| `GET /api/v1/admin/organization-requests/{request_id}` | Platform Super Admin | Review request details |
+| `POST /api/v1/admin/organization-requests/{request_id}/approve` | Platform Super Admin | Activate organisation, assign requester as owner, record approval |
+| `POST /api/v1/admin/organization-requests/{request_id}/reject` | Platform Super Admin | Reject pending request with required reason |
+| `POST /api/v1/admin/organizations` | Platform Super Admin | Directly create active organisation with an explicit initial management mode |
+| `PUT /api/v1/admin/organizations/{organization_id}/management` | Platform Super Admin | Retain platform management or hand owner assignment to a designated user |
+| `POST /api/v1/admin/organizations/{organization_id}/suspend` | Platform Super Admin | Suspend an active organisation |
+| `POST /api/v1/admin/organizations/{organization_id}/restore` | Platform Super Admin | Restore a suspended organisation |
+
+Lists accept `offset` and `limit` (maximum 100). Request bodies reject extra/protected fields. Slugs are normalized from the organisation name unless a Super Admin supplies a valid explicit slug. Unique-slug conflicts return `409`; they do not complete/alter a request review.
+
+## Transactions and audit trail
+
+Each state transition and its audit event are committed together. Approval creates the organisation, owner assignment, request state change, and audit entries in one database transaction. Direct creation writes both the organisation and initial assignment atomically. Owner handover demotes/removes the prior owner and assigns the new owner in one transaction; the database partial unique index prevents concurrent duplicate owners. Status changes accept only `ACTIVE → SUSPENDED` and `SUSPENDED → ACTIVE`.
+
+Audit action names include `ORGANIZATION_REQUEST_SUBMITTED`, `ORGANIZATION_REQUEST_APPROVED`, `ORGANIZATION_REQUEST_REJECTED`, `ORGANIZATION_CREATED_DIRECTLY`, `ORGANIZATION_MANAGEMENT_ASSIGNED`, `ORGANIZATION_MANAGEMENT_RETAINED`, `ORGANIZATION_MANAGEMENT_HANDED_OVER`, `ORGANIZATION_SUSPENDED`, and `ORGANIZATION_RESTORED`.
+
+## Migration and deployment
+
+The migration has been tested by rendering Alembic SQL offline and using the isolated SQLite API tests. It has not been applied to Neon or any production database. Review and apply `alembic upgrade head` only against an approved non-production Neon branch first; use a direct (non-pooler) connection for migrations and follow the project's backup/release process.
+
+Because `created_by` and management assignments preserve user references, the existing account-deletion flow now rejects deletion before contacting Firebase when the user created or manages an organisation. A future ownership-transfer/archive policy must explicitly resolve creator provenance before this restriction can be relaxed.
+
+## Explicitly out of scope
+
+No organisation membership/joining, invitations, student/employee verification, units/departments as tenant sub-entities, register imports, elections, polls, candidates, ballots, voting, or results are implemented. `ORGANISATION_ADMIN` exists only as a management-assignment role foundation; no general assignment/delegation API is exposed in this stage.

@@ -1,6 +1,6 @@
 # ROLES_AND_PERMISSIONS.md — Scoped Role & Authority Specification
 
-This document specifies the six scoped roles in **UniVote**, defining their operational boundaries, authority matrices, and access enforcement rules.
+This document describes the intended UniVote role scopes and distinguishes the implemented organization-management foundation from future roles. The current backend implements only Platform Super Admin and organization owner/admin assignment foundations; election, member, and poll permissions are not implemented.
 
 ---
 
@@ -42,7 +42,7 @@ graph TD
 | Role | Scope | Authority & Core Responsibilities | Appointment Mechanism |
 |---|---|---|---|
 | **1. Platform Super Admin** | Global / Platform | Oversees global infrastructure, reviews and approves new organizations, assigns initial Organization Admins, and audits cross-tenant activities. | Direct database provisioning or internal platform governance. |
-| **2. Organization Admin** | Organization | Configures organizational branding, manages membership verification, uploads voter registers, assigns Election Officials, and grants Poll Creator permissions. | Appointed by Platform Super Admin (initial) or existing Org Admin. |
+| **2. Organization Owner / Admin** | Organization | Current backend assignment foundation only. Owner/admin assignments are not a general membership system; organization administration workflows beyond the foundation remain future work. | Initial owner is assigned on approval/direct creation; no general delegation endpoint exists yet. |
 | **3. Election Official** | Specific Election / Org | Configures formal elections, sets up contested positions, vets candidate nominations, monitors live turnout, and conducts preliminary review of tallies. | Assigned by Organization Admin to specific election(s). |
 | **4. Election Super Admin** | Specific Election / Org | Holds final certification authority. Reviews election audit trails, signs off on preliminary tallies, approves or rejects results, and certifies public release. | Assigned by Organization Admin or Institutional Returning Officer. |
 | **5. Member / Voter** | Organization | Enrolled organizational member. Verifies identity against the institutional register, browses elections/polls, checks eligibility, and casts secret ballots. | Self-registration followed by institutional verification. |
@@ -68,8 +68,13 @@ To eliminate role confusion in implementation and audit trails:
 
 ## 4. Authorization Enforcement
 
-All permissions are authoritatively checked on the server using FastAPI dependency injection:
-- `require_platform_admin`: Verifies `user.is_platform_super_admin == True`.
-- `require_org_admin`: Verifies active membership with `role == 'ORGANIZATION_ADMIN'` for `current_organization_id`.
-- `require_election_official`: Verifies assignment in `election_official_assignments` or Org Admin standing.
-- `require_election_super_admin`: Verifies final result certification authority for the target election.
+Implemented permissions are centrally registered in `backend/app/auth/permissions.py` and checked in FastAPI:
+
+- Platform administration requires `is_platform_super_admin == True`.
+- Organization detail access requires platform authority or an organization assignment.
+- Active/revoked organization and platform role assignments are stored separately from Firebase identity.
+- Platform role assignments do not automatically grant organization roles.
+- Organization roles do not grant platform administration.
+- Frontend navigation reflects database-backed profile role state only for usability; backend dependencies remain authoritative.
+
+Election, membership, and poll authorization rules above remain target concepts and are not yet enforced by application modules.

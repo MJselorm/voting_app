@@ -2,6 +2,8 @@
 
 This document specifies the authentication mechanics, registration flows, and multi-organization membership lifecycle in **UniVote**.
 
+> **Current implementation scope:** Firebase + FastAPI universal accounts and the organization-request/Platform Super Admin backend foundation are implemented. Memberships, joining, roster verification, tenant switching, and broader organization-scoped operations are not implemented. See [ORGANIZATION_MANAGEMENT.md](./ORGANIZATION_MANAGEMENT.md) for implemented endpoints and permissions.
+
 ---
 
 ## 1. Universal Accounts vs. Organization Memberships
@@ -11,7 +13,9 @@ UniVote enforces a fundamental separation between platform identity and institut
 | Concept | Scope | Stored Entity | Key Attributes |
 |---|---|---|---|
 | **User Account** | Global / Platform | `users` | `firebase_uid`, `email`, `full_name`, `is_platform_super_admin`, `is_active` |
-| **Organization** | Tenant | `organizations` | `name`, `slug`, `status`, `settings` |
+| **Organization** | Tenant | `organizations` | `name`, `slug`, `organization_type`, `status`, `created_by`, `approved_by` |
+| **Organization Request** | Platform onboarding | `organization_requests` | `requested_by`, submitted details, review state/reason |
+| **Organization Management Assignment** | One organization | `organization_management_assignments` | `organization_id`, `user_id`, `role` |
 | **Organization Membership**| Tenant-Specific | `organization_memberships` | `organization_id`, `user_id`, `member_identifier`, `role`, `department`, `status`, `is_verified` |
 | **Voter Eligibility** | Event / Ballot | Evaluated dynamically | Criteria matching based on membership attributes or uploaded registers |
 

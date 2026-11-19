@@ -33,20 +33,31 @@ This document specifies the REST API design conventions, URL hierarchies, HTTP s
 
 #### `GET /health`
 - **Access**: Public.
-- **Purpose**: Verifies that the API server is online and the PostgreSQL database is reachable.
+- **Purpose**: Verifies that the API server is online.
+- **Current Response**: `{ "status": "ok" }`.
+
+#### `GET /api/health`
+- **Access**: Public.
+- **Purpose**: Application health route under the API base prefix.
+- **Current Response**: `{ "status": "ok" }`.
 
 #### `POST /api/auth/sync`
 - **Access**: Authenticated (Bearer Token).
 - **Purpose**: Creates or retrieves the global user profile in PostgreSQL following Firebase sign-in.
-- **Request Body**: `{ "full_name": "string", "email": "string" }`
+- **Verified-Email Requirement**: `email_verified=true` is required.
+- **Request Body**: No identity fields are accepted. UID and email are derived from the verified Firebase token.
 
 #### `GET /api/auth/me`
 - **Access**: Authenticated.
-- **Purpose**: Returns the current user's profile and active organization memberships.
+- **Purpose**: Returns the current user's universal account profile.
+- **Verified-Email Requirement**: `email_verified=true` is required.
 
 #### `PATCH /api/auth/me`
 - **Access**: Authenticated.
-- **Purpose**: Updates personal profile attributes (e.g., display name). Dropped from client modifications: role, verification state.
+- **Purpose**: Updates the caller's full name.
+- **Verified-Email Requirement**: `email_verified=true` is required.
+- **Request Body**: `{ "full_name": "string" }`
+- **Restricted Fields**: IDs, email, verification state, active state, timestamps, and administrative fields are not client-modifiable.
 
 ---
 

@@ -3,78 +3,78 @@
 This document is the authoritative task tracker for transitioning UniVote from the single-institution prototype to the target multi-tenant platform.
 
 **Status Labels:**
-- `NOT STARTED`: Architectural plan established; code not written.
-- `PARTIALLY IMPLEMENTED`: Partial backend model, schema, or UI exists; requires enhancement.
-- `IMPLEMENTED`: Functionality verified in codebase, migrations, and test suite.
-- `NEEDS REVIEW`: Implemented in prototype; requires architectural refactoring to align with multi-tenancy.
-- `BLOCKED`: Development dependent on prior foundational phase completion.
+- `NOT STARTED`: No working implementation exists.
+- `PARTIALLY IMPLEMENTED`: Some functionality exists but is incomplete.
+- `IMPLEMENTED`: Verified through code, migration/schema, integration, and relevant tests.
+- `NEEDS REVIEW`: Implementation exists but has architectural, security, or correctness concerns.
+- `BLOCKED`: Verification cannot proceed because of an identified dependency or environment limitation.
 
 ---
 
 ## Phase 1: Architecture and Multi-Tenancy Foundation
 
-- [x] **Audit existing backend and frontend architecture**
-  - **Status**: `IMPLEMENTED`
+- [] **Audit existing backend and frontend architecture**
+  - **Status**: `PARTIALLY IMPLEMENTED`
   - **Relevant Files**: `backend/app/main.py`, `frontend/src/App.tsx`, `docs/SYSTEM_ARCHITECTURE.md`
-  - **Outcome**: Complete inspection performed; current single-institution constraints documented.
-- [x] **Review existing database schema**
-  - **Status**: `IMPLEMENTED`
+  - **Outcome**: The authentication-only FastAPI and React foundations are implemented and tested. Organization and election domain implementations are outside this stage and remain to be built or reconnected.
+- [] **Review existing database schema**
+  - **Status**: `PARTIALLY IMPLEMENTED`
   - **Relevant Files**: `backend/app/models/`, `backend/migrations/versions/`
-  - **Outcome**: Models evaluated (users, students, elections, positions, approvals, audit logs).
-- [ ] **Design multi-tenant organization relationships**
+  - **Outcome**: The stage 1 `users` SQLAlchemy model and Alembic migration are implemented. The wider organization/election schema remains out of scope and has not been verified against Neon.
+- [] **Design multi-tenant organization relationships**
   - **Status**: `NOT STARTED`
   - **Dependencies**: None.
   - **Expected Outcome**: Relational design for `organizations` and `organization_memberships` tables with foreign key cascades.
-  - **Implementation Notes**: Will introduce `organization_id` to election, roster, and audit tables.
-- [ ] **Design scoped role and permission architecture**
-  - **Status**: `NOT STARTED`
+  - **Implementation Notes**: This task is intentionally outside the current authentication foundation. No `organizations` or `organization_memberships` tables were added.
+- [x] **Design scoped role and permission architecture**
+  - **Status**: `NEEDS REVIEW`
   - **Dependencies**: Organization schema design.
-  - **Expected Outcome**: Pydantic and SQLAlchemy models reflecting 6 scoped roles (Platform Super Admin, Org Admin, Election Official, Election Super Admin, Member, Poll Creator).
-- [ ] **Define organization isolation requirements**
-  - **Status**: `NOT STARTED`
+  - **Outcome**: Tenant roles use active membership checks; legacy global operational-role mutation is retired. API integration and role-isolation tests still require a test database.
+- [x] **Define organization isolation requirements**
+  - **Status**: `NEEDS REVIEW`
   - **Dependencies**: Scoped role design.
-  - **Expected Outcome**: FastAPI dependency `get_current_org_context` reading `X-Organization-ID` and binding query scope.
-- [ ] **Identify required database migrations**
-  - **Status**: `NOT STARTED`
+  - **Outcome**: `X-Organization-ID` is required and validated as an active organization; no fallback is used. Service and API isolation remain unverified end to end.
+- [] **Identify required database migrations**
+  - **Status**: `BLOCKED`
   - **Dependencies**: Relational schema design.
-  - **Expected Outcome**: Plan for non-breaking Alembic migrations adding `organizations`, `organization_memberships`, and tenant foreign keys.
-- [ ] **Document API changes required**
-  - **Status**: `NOT STARTED`
+  - **Outcome**: Migrations 010–012 form a linear source revision chain and offline SQL renders. No migration has been applied to a database.
+- [] **Document API changes required**
+  - **Status**: `PARTIALLY IMPLEMENTED`
   - **Dependencies**: Tenant isolation design.
-  - **Expected Outcome**: REST path conventions updated to `/api/orgs/{org_id}/...`.
+  - **Outcome**: Organization endpoints and a browser discovery/join/verify route are present; API and browser integration tests remain blocked.
 
 ---
 
 ## Phase 2: Universal Accounts and Organization Membership
 
-- [x] **Review existing authentication implementation**
+- [] **Review existing authentication implementation**
   - **Status**: `IMPLEMENTED`
-  - **Relevant Files**: `backend/app/core/firebase_admin.py`, `backend/app/auth/dependencies.py`
-  - **Outcome**: Firebase ID token verification verified working cleanly.
-- [ ] **Support universal email-based registration**
-  - **Status**: `NEEDS REVIEW`
-  - **Relevant Files**: `backend/app/api/auth.py`, `frontend/src/pages/RegisterPage.tsx`
-  - **Expected Outcome**: Decouple `student_id` from registration payload so any valid email can register globally.
-- [ ] **Design organization joining workflow**
-  - **Status**: `NOT STARTED`
-  - **Dependencies**: Universal registration.
-  - **Expected Outcome**: Endpoint `POST /api/orgs/{org_id}/join` allowing registered users to request membership.
-- [ ] **Design membership verification**
+  - **Relevant Files**: `backend/app/auth/firebase.py`, `backend/app/auth/dependencies.py`
+  - **Outcome**: Firebase Admin centralized initialization, bearer-token verification, signature/expiry handling, revoked-token checks, and server-side email-verification enforcement are implemented. Live Firebase credentials and real-token lifecycle testing remain outstanding.
+- [] **Support universal email-based registration**
   - **Status**: `PARTIALLY IMPLEMENTED`
-  - **Relevant Files**: `backend/app/services/student_verification.py`, `backend/app/services/identity.py`
-  - **Expected Outcome**: Adapt existing identity comparison logic to cross-check membership against the specific organization's roster.
-- [ ] **Implement membership statuses**
-  - **Status**: `NOT STARTED`
+  - **Relevant Files**: `backend/app/api/routes/auth.py`, `frontend/src/pages/RegisterPage.tsx`
+  - **Outcome**: The frontend supports full-name, email, password, confirmation, Firebase email verification, and account synchronization without a student ID. Firebase account creation and email delivery require live project credentials and were not exercised.
+- [] **Design organization joining workflow**
+  - **Status**: `PARTIALLY IMPLEMENTED`
+  - **Dependencies**: Universal registration.
+  - **Outcome**: Directory, join, membership-read, and verification APIs are connected to `/organizations`; browser/API behavior remains untested.
+- [] **Design membership verification**
+  - **Status**: `NEEDS REVIEW`
+  - **Relevant Files**: `backend/app/services/student_verification.py`, `backend/app/services/student_records.py`, `backend/app/api/organizations.py`
+  - **Outcome**: Verification now uses the requested organization's active roster and compares ID, email, and name. Runtime roster and duplicate-data validation is pending.
+- [] **Implement membership statuses**
+  - **Status**: `NEEDS REVIEW`
   - **Dependencies**: Membership schema.
-  - **Expected Outcome**: Support `PENDING_VERIFICATION`, `ACTIVE`, `MANUAL_REVIEW`, `SUSPENDED`, `ALUMNI_INACTIVE`.
-- [ ] **Support multiple organization memberships**
-  - **Status**: `NOT STARTED`
+  - **Outcome**: `PENDING`, `ACTIVE`, `SUSPENDED`, and `REJECTED` are modeled with guarded transitions and an admin status endpoint; migration 012 must be applied and tested before deployment.
+- [] **Support multiple organization memberships**
+  - **Status**: `PARTIALLY IMPLEMENTED`
   - **Dependencies**: Membership statuses.
-  - **Expected Outcome**: User can hold active memberships in multiple organizations concurrently.
-- [ ] **Separate account roles from organization roles**
-  - **Status**: `NOT STARTED`
+  - **Outcome**: Unique `(organization_id, user_id)` and tenant-scoped identifiers support multiple memberships in source. No two-organization integration journey was run.
+- [] **Separate account roles from organization roles**
+  - **Status**: `NEEDS REVIEW`
   - **Dependencies**: Membership architecture.
-  - **Expected Outcome**: `users.role` becomes `is_platform_super_admin`, while operational roles reside in `organization_memberships.role`.
+  - **Outcome**: Platform authority comes from `is_platform_super_admin`; operational access comes from active scoped membership. Database and API integration verification is pending.
 
 ---
 

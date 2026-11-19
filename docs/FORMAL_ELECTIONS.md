@@ -41,11 +41,12 @@ stateDiagram-v2
 
 ---
 
-## 3. Candidate Nomination & Vetting
+## 3. Candidate Management
 
-1. **Nomination Filing**: Members submit applications for approved positions, uploading bios, photos, and platform manifestos.
-2. **Official Vetting**: Assigned Election Officials inspect candidate academic/disciplinary standing, verify qualifications, and approve or reject nominations.
-3. **Ballot Placement**: Only vetted candidates appear on the published ballot.
+1. **Administrator / Official Addition**: Authorized Election Officials or Organization Administrators add and configure candidates directly for each contested position (`POST /api/elections/{election_id}/positions/{position_id}/candidates`).
+2. **Candidate Attributes**: Candidates are registered with full name, student reference/ID, brief biography, photo URL, and position display order.
+3. **No Public Self-Nomination**: In accordance with approved product decisions, public self-nomination is omitted; candidate entry is strictly administrative.
+4. **Ballot Placement**: Configured candidates are assigned to their respective position and appear on the official ballot.
 
 ---
 

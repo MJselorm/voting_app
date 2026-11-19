@@ -1,0 +1,15 @@
+# Authentication architecture
+
+- **Firebase Authentication** owns credentials and sessions: email/password registration, Google sign-in, email verification, and password reset.
+- **React + TypeScript + Vite** restores Firebase's browser-persisted session, attaches Firebase ID tokens to REST calls, and protects the verified-user routes.
+- **FastAPI** verifies token signatures and expiry with Firebase Admin on every protected request. User synchronization and profile endpoints also require the verified-email claim. The backend derives the user ID and email from token claims, never from request data.
+- **Neon PostgreSQL** stores the application user profile only. The `users` table has a UUID key, unique Firebase UID and normalized email, full name, active flag, and timestamps. Passwords and Firebase service credentials are not stored there.
+- **SQLAlchemy + Alembic** own the model and initial schema migration. Profile writes run in database transactions. A uniqueness collision returns `409` without merging separate Firebase identities.
+
+REST endpoints: `GET /api/health`, `POST /api/auth/sync`, and `GET|PATCH|DELETE /api/v1/users/me`. Profile updates currently permit only `full_name`; email changes remain managed by Firebase and are not offered through this endpoint. A Firebase bearer token with `email_verified=true` is required. Account deletion additionally requires recent Firebase reauthentication (an `auth_time` within five minutes).
+
+The profile page reads and writes through FastAPI; the shared API client attaches the Firebase ID token. Neon is authoritative for the UniVote full name and profile record, while Firebase owns the UID, email credentials, and session. A successful name update mirrors the display name to Firebase. If that mirror fails, the UI reports that Neon saved the change but Firebase did not.
+
+Account deletion requires typed confirmation and reauthentication in the frontend. The backend first marks the Neon profile inactive, then deletes the Firebase user, and finally removes the Neon profile. If Firebase deletion fails, it reactivates the profile and reports failure instead of success. If reactivation fails, or if Neon cannot remove the profile after Firebase deletion, it returns an explicit partial-failure response for support recovery; in the latter case the Neon row remains inactive. A database failure while preparing deletion happens before Firebase is changed. These two systems do not share a distributed transaction, so an ambiguous provider/network failure can still require operational reconciliation.
+
+The current schema contains only the universal `users` table and has no organization, membership, election, ballot, or audit relationships. Deletion therefore does not cascade into those records. If such records are introduced, their retention and anonymization rules must be defined before enabling deletion: preserve election/voting integrity and legally required audit history, and never cascade-delete organization-owned or historical records merely because a user account is removed.
