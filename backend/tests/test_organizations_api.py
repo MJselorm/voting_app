@@ -256,8 +256,12 @@ def test_direct_creation_retains_management_for_platform_admin(client):
             OrganizationRoleAssignment.status == AssignmentStatus.ACTIVE,
         ),
     )
-    assert assignments == []
-    assert rbac_assignments == []
+    assert [(item.user_id, item.role) for item in assignments] == [
+        (uuid.UUID(admin["id"]), OrganizationManagementRole.OWNER)
+    ]
+    assert [(item.user_id, item.role) for item in rbac_assignments] == [
+        (uuid.UUID(admin["id"]), OrganizationRole.ORGANISATION_OWNER)
+    ]
     assert read_user(client, admin["id"]).is_platform_super_admin is True
     actions = read_db_rows(
         client,
@@ -993,8 +997,9 @@ def test_invitation_expiry_and_revocation_are_reported_and_enforced(client):
         item for item in listed.json()["items"]
         if item["id"] == expiring_invite.json()["id"]
     )
-    assert expired["status"] == "EXPIRED"
-    assert expired["notification_delivery"] == "NOT_CONFIGURED"
+    # Listing is read-only: it neither changes the invitation nor sends email.
+    assert expired["status"] == "PENDING"
+    assert expired["notification_delivery"] is None
 
     expired_user = {
         **VALID_CLAIMS,

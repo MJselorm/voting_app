@@ -17,6 +17,12 @@ This foundation provides Firebase Authentication, a FastAPI REST API, and Neon P
    ```
    Fill in the Firebase Web app values and keep `VITE_API_BASE_URL` pointed at the FastAPI origin. Firebase web configuration is public; do not put Admin credentials or `DATABASE_URL` in the frontend.
 
+## Credential security and incident response
+
+Firebase service-account JSON files are secrets. They are excluded by `.gitignore` and must stay outside the repository; use a private path for `GOOGLE_APPLICATION_CREDENTIALS`, a deployment secret for `FIREBASE_SERVICE_ACCOUNT_JSON`, or workload identity in production.
+
+If a service-account file is exposed, assume it is compromised: remove it from the checkout, disable/delete the exposed key in **Google Cloud Console → IAM & Admin → Service Accounts → Keys**, create and deploy a replacement only if workload identity is unavailable, update the secret store, and review Cloud Audit Logs for unexpected use. Removing a file from a commit does not revoke a previously exposed key.
+
 ## Run locally
 
 Backend, from the repository root:

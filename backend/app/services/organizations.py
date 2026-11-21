@@ -208,10 +208,10 @@ def list_discoverable_organizations(
     organizations = list_organizations(
         db,
         status_filter=OrganizationStatus.ACTIVE,
+        public_only=True,
         offset=offset,
         limit=limit,
     )
-    organizations = [item for item in organizations if item.is_public_profile]
     if organization_type is None:
         return organizations
     return [item for item in organizations if item.organization_type.value == organization_type]
@@ -443,7 +443,7 @@ def _revoke_organization_owner_roles(
         )
     )
     for assignment in assignments:
-        if assignment.user_id != retained_owner_id:
+        if assignment.user_id == retained_owner_id:
             continue
         assignment.status = AssignmentStatus.REVOKED
         assignment.revoked_at = _now()
@@ -474,9 +474,8 @@ def create_organization_directly(
     )
     db.add(organization)
     _flush(db)
-    if data.management_mode == OrganizationManagementMode.ASSIGN_OWNER:
-        _create_management_assignment(db, organization, manager, admin)
-        _sync_organization_owner_role(db, organization, manager, admin)
+    _create_management_assignment(db, organization, manager, admin)
+    _sync_organization_owner_role(db, organization, manager, admin)
     _record_audit(
         db,
         actor=admin,

@@ -74,12 +74,15 @@ def list_organizations(
     db: Session,
     *,
     status_filter: OrganizationStatus | None,
+    public_only: bool = False,
     offset: int,
     limit: int,
 ) -> list[Organization]:
     statement: Select[tuple[Organization]] = select(Organization)
     if status_filter is not None:
         statement = statement.where(Organization.status == status_filter)
+    if public_only:
+        statement = statement.where(Organization.is_public_profile.is_(True))
     return list(
         db.scalars(
             statement.order_by(Organization.created_at.desc(), Organization.id)

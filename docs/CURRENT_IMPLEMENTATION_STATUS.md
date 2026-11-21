@@ -22,10 +22,18 @@
 - Membership request and verification review APIs and organisation-admin workflows in the UI.
 - SMTP notifications report `SENT`, `NOT_CONFIGURED`, `FAILED`, or `NO_RECIPIENT`; SMTP credentials must be configured for email delivery.
 - Audit events record policy changes and membership/request/invitation/verification transitions.
+- Discoverable-organisation pagination filters public profiles in SQL before `LIMIT`/`OFFSET`; private profiles remain available to active members, assigned managers, and Platform Super Admins.
+- Direct creation with retained platform management creates the Platform Super Admin's organisation management and owner-role assignments.
+- Invitation-list reads are side-effect free; they do not mark invitations expired or dispatch expiry email.
+- The organisation-detail UI maintains a separate rejection-reason draft for each membership request and verification submission.
+
+### Security follow-up required
+
+- A Firebase service-account JSON file was removed from the working tree after exposure was identified. The affected service-account key must be disabled/deleted and replaced in Firebase/Google Cloud and the deployment secret store. See the credential-security procedure in the repository README.
 
 ## Validation
 
-- Backend: **60 tests passed** using isolated/in-memory SQLite and mocked Firebase claims.
+- Backend: the focused organisation API suite: **30 tests passed** using isolated/in-memory SQLite and mocked Firebase claims.
 - Frontend: **25 tests passed**.
 - Frontend TypeScript check and production build: **passed**. Vite reports the existing large-chunk advisory.
 - Alembic upgrade through revision `0006_configurable_membership`: **passed** on an isolated SQLite database. Migration tests must never use the configured Neon URL.

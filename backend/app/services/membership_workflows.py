@@ -291,29 +291,9 @@ def list_organization_invitations(
         .order_by(OrganizationInvitation.created_at.desc())
         .limit(100)
     ))
-    now = _now()
-    expired: list[OrganizationInvitation] = []
-    for invitation in invitations:
-        if (
-            invitation.status == OrganizationInvitationStatus.PENDING
-            and _is_expired(invitation.expires_at, now)
-        ):
-            invitation.status = OrganizationInvitationStatus.EXPIRED
-            invitation.updated_at = now
-            expired.append(invitation)
-            db.add(OrganizationAuditLog(
-                organization_id=organization.id,
-                actor_user_id=admin.id,
-                action="ORGANIZATION_INVITATION_EXPIRED",
-                details={"invitation_id": str(invitation.id)},
-            ))
-    if expired:
-        _commit(db)
-    delivery_by_id = {
-        invitation.id: _notify_invitation_expired(invitation)
-        for invitation in expired
-    }
-    return [(invitation, delivery_by_id.get(invitation.id)) for invitation in invitations]
+    # A GET endpoint must be safe: expiry state is updated by write paths (accept
+    # and revoke) or a scheduled expiry job, never while rendering this list.
+    return [(invitation, None) for invitation in invitations]
 
 
 def revoke_organization_invitation(

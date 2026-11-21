@@ -18,7 +18,9 @@ Existing and new organisations default to administrator-approved membership, wit
 
 Requests require an active UniVote account authenticated by a Firebase ID token with a verified email. Organisation membership settings and member-management endpoints require an organisation owner/admin assignment. Platform Super Admin status alone does not grant organisation-level authority.
 
-Active organisation details are discoverable to authenticated users. Suspended organisation details are restricted to assigned managers and Platform Super Admins. Platform-wide creation, request review, management handover, and suspend/restore operations remain Platform Super Admin-only.
+Active public organisation details are discoverable to authenticated users. Active members, assigned organisation managers, and Platform Super Admins can also read private organisation details. Suspended organisation details are restricted to assigned managers and Platform Super Admins. Platform-wide creation, request review, management handover, and suspend/restore operations remain Platform Super Admin-only.
+
+When a Platform Super Admin directly creates an organisation with `RETAIN_PLATFORM_MANAGEMENT`, the service creates an organisation-owner management assignment and matching active owner role for that administrator. Ownership handover retains the new owner role and revokes active owner roles for other users.
 
 ## Membership policy and lifecycle
 
@@ -48,7 +50,7 @@ All paths below are prefixed with `/api`.
 | `GET /v1/admin/organizations/{organization_id}/membership-verifications` | Organisation owner/admin | List pending verifications |
 | `POST /v1/admin/organizations/{organization_id}/membership-verifications/{verification_id}/approve` | Organisation owner/admin | Approve a manual verification |
 | `POST /v1/admin/organizations/{organization_id}/membership-verifications/{verification_id}/reject` | Organisation owner/admin | Reject a manual verification with a reason |
-| `GET /v1/admin/organizations/{organization_id}/invitations` | Organisation owner/admin | List invitations and expire overdue ones |
+| `GET /v1/admin/organizations/{organization_id}/invitations` | Organisation owner/admin | List invitations without changing state or sending email |
 | `POST /v1/admin/organizations/{organization_id}/invitations` | Organisation owner/admin | Issue and email an invitation |
 | `POST /v1/admin/organizations/{organization_id}/invitations/{invitation_id}/revoke` | Organisation owner/admin | Revoke a pending invitation |
 
@@ -57,6 +59,8 @@ Organisation creation, platform request review, initial management, and suspend/
 ## Email configuration
 
 Configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS` for delivery; set `PUBLIC_APP_URL` to the frontend's externally reachable base URL. Without SMTP configuration, invite links remain available to the issuing administrator for secure sharing, and the API reports `NOT_CONFIGURED`.
+
+Invitation expiry is enforced on write/acceptance paths. A scheduled expiry worker may update overdue invitations and notify invitees, but the list GET endpoint is intentionally read-only.
 
 ## Migration and deployment
 

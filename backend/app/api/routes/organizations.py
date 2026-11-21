@@ -2,6 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_active_user, get_platform_super_admin
@@ -10,9 +11,11 @@ from app.models.organization import (
     MembershipRequestStatus,
     MembershipVerificationStatus,
     OrganizationInvitation,
+    OrganizationMembership,
     OrganizationMembershipRequest,
     OrganizationRequestStatus,
     OrganizationStatus,
+    MembershipStatus,
 )
 from app.models.user import User
 from app.schemas.organization import (
@@ -324,19 +327,19 @@ def get_organization_details(
     organization = get_organization_or_404(db, organization_id)
     if organization.status == OrganizationStatus.ACTIVE and organization.is_public_profile:
         return organization
-    if not user.is_platform_super_admin and not is_organization_manager(
+    can_access_private_organization = user.is_platform_super_admin or is_organization_manager(
         db, organization_id, user.id
-    ):
+    ) or db.scalar(
+        select(OrganizationMembership.id).where(
+            OrganizationMembership.organization_id == organization_id,
+            OrganizationMembership.user_id == user.id,
+            OrganizationMembership.status == MembershipStatus.ACTIVE,
+        )
+    ) is not None
+    if not can_access_private_organization:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Organisation was not found.",
-        )
-    if not user.is_platform_super_admin and not is_organization_manager(
-        db, organization_id, user.id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not assigned to manage this organisation.",
         )
     return organization
 

@@ -104,7 +104,7 @@ export function OrganizationDetailsPage() {
     useApproveOrganizationMembershipRequest(id || "");
   const { mutateAsync: rejectMembershipRequest, isPending: isRejectingMembership } =
     useRejectOrganizationMembershipRequest(id || "");
-  const [membershipRejectReason, setMembershipRejectReason] = useState("");
+  const [membershipRejectReasons, setMembershipRejectReasons] = useState<Record<string, string>>({});
   const { mutateAsync: approveVerification, isPending: isApprovingVerification } =
     useApproveOrganizationMembershipVerification(id || "");
   const { mutateAsync: rejectVerification, isPending: isRejectingVerification } =
@@ -115,7 +115,7 @@ export function OrganizationDetailsPage() {
     useRevokeOrganizationInvitation(id || "");
   const { mutateAsync: updateMembershipPolicy, isPending: isSavingPolicy } =
     useUpdateOrganizationMembershipPolicy(id || "");
-  const [verificationRejectReason, setVerificationRejectReason] = useState("");
+  const [verificationRejectReasons, setVerificationRejectReasons] = useState<Record<string, string>>({});
   const [invitationEmail, setInvitationEmail] = useState("");
   const [latestInvitationUrl, setLatestInvitationUrl] = useState("");
   const [latestInvitationDelivery, setLatestInvitationDelivery] = useState("");
@@ -571,8 +571,8 @@ export function OrganizationDetailsPage() {
                             <div className="flex flex-1 items-center gap-2">
                               <input
                                 type="text"
-                                value={membershipRejectReason}
-                                onChange={(event) => setMembershipRejectReason(event.target.value)}
+                                value={membershipRejectReasons[request.id] ?? ""}
+                                onChange={(event) => setMembershipRejectReasons((reasons) => ({ ...reasons, [request.id]: event.target.value }))}
                                 placeholder="Rejection reason"
                                 className="h-8 min-w-32 flex-1 rounded-md border border-input px-2 text-xs"
                               />
@@ -581,19 +581,19 @@ export function OrganizationDetailsPage() {
                                 size="sm"
                                 variant="destructive"
                                 className="text-xs"
-                                disabled={isRejectingMembership || membershipRejectReason.trim().length < 2}
+                                disabled={isRejectingMembership || (membershipRejectReasons[request.id] ?? "").trim().length < 2}
                                 onClick={async () => {
                                   setAdminActionError("");
                                   setAdminActionSuccess("");
                                   try {
                                     const result = await rejectMembershipRequest({
                                       requestId: request.id,
-                                      reason: membershipRejectReason.trim(),
+                                      reason: (membershipRejectReasons[request.id] ?? "").trim(),
                                     });
                                     setAdminActionSuccess(
                                       `Request rejected. Applicant email: ${result.notification_delivery ?? "NOT_SENT"}`,
                                     );
-                                    setMembershipRejectReason("");
+                                    setMembershipRejectReasons((reasons) => ({ ...reasons, [request.id]: "" }));
                                     await refetchMembershipRequests();
                                   } catch (cause) {
                                     setAdminActionError(
@@ -670,26 +670,26 @@ export function OrganizationDetailsPage() {
                                 <Input
                                   aria-label="Verification rejection reason"
                                   placeholder="Reason for rejection"
-                                  value={verificationRejectReason}
-                                  onChange={(event) => setVerificationRejectReason(event.target.value)}
+                                  value={verificationRejectReasons[verification.id] ?? ""}
+                                  onChange={(event) => setVerificationRejectReasons((reasons) => ({ ...reasons, [verification.id]: event.target.value }))}
                                 />
                                 <Button
                                   type="button"
                                   size="sm"
                                   variant="destructive"
-                                  disabled={isRejectingVerification || verificationRejectReason.trim().length < 2}
+                                  disabled={isRejectingVerification || (verificationRejectReasons[verification.id] ?? "").trim().length < 2}
                                   onClick={async () => {
                                     setAdminActionError("");
                                     setAdminActionSuccess("");
                                     try {
                                       const result = await rejectVerification({
                                         verificationId: verification.id,
-                                        reason: verificationRejectReason.trim(),
+                                      reason: (verificationRejectReasons[verification.id] ?? "").trim(),
                                       });
                                       setAdminActionSuccess(
                                         `Verification rejected. Applicant email: ${result.notification_delivery ?? "NOT_SENT"}`,
                                       );
-                                      setVerificationRejectReason("");
+                                    setVerificationRejectReasons((reasons) => ({ ...reasons, [verification.id]: "" }));
                                       await refetchVerifications();
                                     } catch (cause) {
                                       setAdminActionError(
