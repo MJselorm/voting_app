@@ -59,13 +59,13 @@ npm run build
 
 ## Frontend architecture
 
-The React application is organized by feature. `frontend/src/app/` owns routing and providers; `features/auth/` owns the implemented authentication flow; shared UI, navigation, and infrastructure live in `components/` and `lib/`. Organizations, elections, candidates, voting, polls, results, and administration currently have route placeholders only. Add their business logic inside their respective feature folders when those features enter scope.
+The React application is organized by feature. `frontend/src/app/` owns routing and providers; `features/auth/` owns authentication; `features/organizations/` includes organisation discovery, requests, membership workflows, and the Platform Super Admin console for organisation, user-role, audit, and setting management. Shared UI, navigation, and infrastructure live in `components/` and `lib/`. Elections, candidates, voting, polls, and results remain route placeholders.
 
 The auth provider owns Firebase session state, while TanStack Query caches backend user profiles. Forms use React Hook Form and Zod; feature routes are lazy-loaded. Backend authorization remains authoritative.
 
 ## Scope
 
-This foundation includes registration, email verification, email/password and Google login, password reset, session restoration, protected routes, profile viewing and full-name updates, and confirmed account deletion. The profile endpoints are `GET`, `PATCH`, and `DELETE /api/v1/users/me`; account deletion requires recent Firebase reauthentication. The organization request, Platform Super Admin, management assignment, and lifecycle backend foundation is documented in [docs/ORGANIZATION_MANAGEMENT.md](./docs/ORGANIZATION_MANAGEMENT.md). Memberships, invitations, elections, polls, and voting are not implemented.
+This foundation includes registration, email verification, email/password and Google login, password reset, session restoration, protected routes, profile viewing and full-name updates, and confirmed account deletion. The profile endpoints are `GET`, `PATCH`, and `DELETE /api/v1/users/me`; account deletion requires recent Firebase reauthentication. Organisation membership, Platform Super Admin, management assignment, and lifecycle behavior is documented in [docs/ORGANIZATION_MANAGEMENT.md](./docs/ORGANIZATION_MANAGEMENT.md). Invitations, elections, polls, and voting are not implemented.
 
 ## Current status
 

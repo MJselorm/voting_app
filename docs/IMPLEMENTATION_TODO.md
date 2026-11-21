@@ -56,25 +56,25 @@ This document is the authoritative task tracker for transitioning UniVote from t
   - **Relevant Files**: `backend/app/api/routes/auth.py`, `frontend/src/pages/RegisterPage.tsx`
   - **Outcome**: The frontend supports full-name, email, password, confirmation, Firebase email verification, and account synchronization without a student ID. Firebase account creation and email delivery require live project credentials and were not exercised.
 - [] **Design organization joining workflow**
-  - **Status**: `PARTIALLY IMPLEMENTED`
-  - **Dependencies**: Universal registration.
-  - **Outcome**: Directory, join, membership-read, and verification APIs are connected to `/organizations`; browser/API behavior remains untested.
+  - **Status**: `IMPLEMENTED`
+  - **Relevant Files**: `backend/app/services/memberships.py`, `backend/app/services/membership_workflows.py`, `backend/app/api/routes/organizations.py`
+  - **Outcome**: Policy-aware approval requests, direct joining, invitation acceptance, membership status, and admin review are covered by API tests. Voter eligibility remains out of scope.
 - [] **Design membership verification**
-  - **Status**: `NEEDS REVIEW`
-  - **Relevant Files**: `backend/app/services/student_verification.py`, `backend/app/services/student_records.py`, `backend/app/api/organizations.py`
-  - **Outcome**: Verification now uses the requested organization's active roster and compares ID, email, and name. Runtime roster and duplicate-data validation is pending.
+  - **Status**: `IMPLEMENTED`
+  - **Relevant Files**: `backend/app/services/memberships.py`, `backend/app/services/membership_workflows.py`
+  - **Outcome**: Verified Firebase email-domain matching or explicit manual organisation-admin review; no submitted identity text is treated as a verified roster record.
 - [] **Implement membership statuses**
-  - **Status**: `NEEDS REVIEW`
-  - **Dependencies**: Membership schema.
-  - **Outcome**: `PENDING`, `ACTIVE`, `SUSPENDED`, and `REJECTED` are modeled with guarded transitions and an admin status endpoint; migration 012 must be applied and tested before deployment.
+  - **Status**: `IMPLEMENTED`
+  - **Relevant Files**: `backend/app/models/organization.py`, `backend/app/services/memberships.py`, `backend/app/services/membership_workflows.py`
+  - **Outcome**: Active memberships, pending/approved/rejected requests, and pending/verified/rejected/cancelled verification records have guarded, audited transitions. Migration `0006_configurable_membership` passed isolated SQLite validation but has not been applied to Neon.
 - [] **Support multiple organization memberships**
-  - **Status**: `PARTIALLY IMPLEMENTED`
+  - **Status**: `IMPLEMENTED`
   - **Dependencies**: Membership statuses.
-  - **Outcome**: Unique `(organization_id, user_id)` and tenant-scoped identifiers support multiple memberships in source. No two-organization integration journey was run.
+  - **Outcome**: Membership uniqueness is scoped to `(organization_id, user_id)`; a user can hold memberships in multiple organisations.
 - [] **Separate account roles from organization roles**
-  - **Status**: `NEEDS REVIEW`
+  - **Status**: `IMPLEMENTED`
   - **Dependencies**: Membership architecture.
-  - **Outcome**: Platform authority comes from `is_platform_super_admin`; operational access comes from active scoped membership. Database and API integration verification is pending.
+  - **Outcome**: Platform Super Admin status does not bypass organisation owner/admin checks. API tests cover this separation.
 
 ---
 

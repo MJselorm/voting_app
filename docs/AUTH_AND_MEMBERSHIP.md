@@ -1,86 +1,42 @@
-# AUTH_AND_MEMBERSHIP.md — Universal Accounts & Organization Membership
+# Authentication and Organisation Membership
 
-This document specifies the authentication mechanics, registration flows, and multi-organization membership lifecycle in **UniVote**.
+UniVote uses Firebase for identity and FastAPI/SQLAlchemy for application accounts and organisation membership. A verified account email confirms mailbox ownership; it does not by itself grant organisation membership.
 
-> **Current implementation scope:** Firebase + FastAPI universal accounts and the organization-request/Platform Super Admin backend foundation are implemented. Memberships, joining, roster verification, tenant switching, and broader organization-scoped operations are not implemented. See [ORGANIZATION_MANAGEMENT.md](./ORGANIZATION_MANAGEMENT.md) for implemented endpoints and permissions.
+## Identity and authorization
 
----
+- Membership endpoints require an active UniVote account authenticated by a Firebase ID token with `email_verified = true`.
+- Platform Super Admin permissions do not imply organisation-owner or organisation-admin permissions. Membership policy, invitation, request-review, and verification-review operations require an active owner/admin assignment for that organisation.
+- Institutional-email verification matches the verified Firebase account email against the organisation's configured domains. Submitted text or identity documents are not treated as verified records.
+- `ADMIN_REVIEW` is a manual decision by an organisation owner/admin. It does not create or consult a fabricated institutional roster.
 
-## 1. Universal Accounts vs. Organization Memberships
+## Membership policy
 
-UniVote enforces a fundamental separation between platform identity and institutional membership:
+Each active organisation has a policy with:
 
-| Concept | Scope | Stored Entity | Key Attributes |
-|---|---|---|---|
-| **User Account** | Global / Platform | `users` | `firebase_uid`, `email`, `full_name`, `is_platform_super_admin`, `is_active` |
-| **Organization** | Tenant | `organizations` | `name`, `slug`, `organization_type`, `status`, `created_by`, `approved_by` |
-| **Organization Request** | Platform onboarding | `organization_requests` | `requested_by`, submitted details, review state/reason |
-| **Organization Management Assignment** | One organization | `organization_management_assignments` | `organization_id`, `user_id`, `role` |
-| **Organization Membership**| Tenant-Specific | `organization_memberships` | `organization_id`, `user_id`, `member_identifier`, `role`, `department`, `status`, `is_verified` |
-| **Voter Eligibility** | Event / Ballot | Evaluated dynamically | Criteria matching based on membership attributes or uploaded registers |
+- `membership_requires_approval` (defaults to `true` for existing and new organisations);
+- `membership_requires_invitation` (defaults to `false`);
+- `verification_mode`: `NONE`, `INSTITUTIONAL_EMAIL`, or `ADMIN_REVIEW`;
+- approved email domains for `INSTITUTIONAL_EMAIL`, or instructions for `ADMIN_REVIEW`.
 
-> **Important**: Email verification establishes only that the user owns their email address. It does **not** grant institutional membership or voting rights.
+The policy is managed using `PUT /api/v1/organizations/{organization_id}/membership-policy`. `INSTITUTIONAL_EMAIL` requires one or more valid domains; manual review requires administrator instructions.
 
----
+## Joining paths
 
-## 2. Universal Registration & Onboarding Lifecycle
+- **Approval required, no invitation required:** `POST /api/v1/organizations/{organization_id}/membership-requests` creates a pending request.
+- **Direct join:** `POST /api/v1/organizations/{organization_id}/membership/join` activates membership unless configured verification is pending.
+- **Invitation required:** an owner/admin issues a time-limited invitation; the invitee must sign in with the invited email and accept the token at `POST /api/v1/organizations/{organization_id}/invitations/accept`.
+- **Verification:** institutional email is checked against the verified Firebase email; manual verification remains pending until an owner/admin approves or rejects it. A request that also requires membership approval still needs separate request approval after verification.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Person as End User
-    participant Auth as Firebase Auth
-    participant API as FastAPI Backend
-    participant DB as PostgreSQL
+Request, invitation, and verification records preserve the policy applicable when submitted. Rejected requests may be resubmitted without deleting their history. Invitation tokens are random, stored only as SHA-256 hashes, bound to an email and organisation, and may be revoked or expire.
 
-    Person->>Auth: 1. Sign up with email & password (or Google OAuth)
-    Auth-->>Person: 2. Verification email dispatched
-    Person->>Auth: 3. Clicks verification link (email_verified = true)
-    Person->>API: 4. POST /api/auth/sync (Creates global User account)
-    API->>DB: INSERT INTO users (email, full_name, firebase_uid)
-    Person->>API: 5. Browse / Select Organization (e.g. "University of Ghana")
-    Person->>API: 6. POST /api/orgs/{org_id}/join (Submits student ID & institutional details)
-    API->>DB: INSERT INTO organization_memberships (status='PENDING_VERIFICATION', role='MEMBER')
-    Person->>API: 7. POST /api/orgs/{org_id}/verify (Initiates identity cross-check)
-    API->>DB: Cross-check against organization_voter_registers
-    alt Match Found & Active
-        API->>DB: UPDATE organization_memberships SET is_verified=true, status='ACTIVE'
-        API-->>Person: Membership Activated! Access granted to eligible ballots.
-    else Match Failed
-        API-->>Person: Verification Failed (Contact Organization Admin)
-    end
-```
+## Membership states and audit
 
----
+Active membership is stored separately from pending/rejected membership requests and verification decisions. Membership, request, invitation, verification, policy-change, and review transitions are recorded in organisation audit logs. Administrators cannot approve their own membership request or verify their own affiliation.
 
-## 3. Membership States
+## Email notifications
 
-Every user's relationship with an organization progresses through explicit states:
+Membership notifications use SMTP configured by `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS`. `PUBLIC_APP_URL` is used to construct application links. Delivery outcomes are reported as `SENT`, `NOT_CONFIGURED`, `FAILED`, or `NO_RECIPIENT`; an unconfigured mail server is never reported as a successful delivery.
 
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING_VERIFICATION: User Joins Organization & Submits ID
-    PENDING_VERIFICATION --> ACTIVE: Successful Cross-Match against Register
-    PENDING_VERIFICATION --> MANUAL_REVIEW: Details Require Staff Inspection
-    MANUAL_REVIEW --> ACTIVE: Org Admin Approves Verification
-    MANUAL_REVIEW --> REJECTED: Org Admin Declines
-    ACTIVE --> SUSPENDED: Disciplinary Hold / Withdrawal
-    SUSPENDED --> ACTIVE: Reinstatement by Org Admin
-    ACTIVE --> ALUMNI_INACTIVE: Graduation / Departure
-    ALUMNI_INACTIVE --> [*]
-```
+## Not included
 
-- **`PENDING_VERIFICATION`**: User joined the organization; automated cross-matching against the uploaded register is in progress.
-- **`ACTIVE`**: Identity verified. User may access member quick polls and check formal election eligibility.
-- **`MANUAL_REVIEW`**: Slight name mismatches or special enrollment statuses escalated to the Organization Admin.
-- **`SUSPENDED`**: Member temporarily barred from voting or participating.
-- **`ALUMNI_INACTIVE`**: Retains historical audit participation without active voting privileges.
-
----
-
-## 4. Multi-Organization Switching
-
-A user may belong to multiple organizations concurrently (e.g. a student enrolled at a University who is also an executive member of an Engineering Association):
-- The client UI provides an **Organization Switcher**.
-- The frontend tracks the active tenant (`currentOrgId`) and attaches the `X-Organization-ID` header to all API requests.
-- The user's role and capabilities adapt automatically to their specific assigned role within that tenant.
+This implementation does not provide voter-register imports, student/employee ID matching, an organisation switcher, election eligibility, or election/voting flows. Membership does not itself establish voting eligibility.

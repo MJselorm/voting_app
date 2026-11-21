@@ -8,11 +8,15 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from app.models.organization import (
     OrganizationManagementMode,
     OrganizationManagementRole,
+    OrganizationInvitationStatus,
     OrganizationRequestStatus,
     OrganizationStatus,
     OrganizationType,
     MembershipRequestStatus,
     MembershipStatus,
+    MembershipVerificationMode,
+    MembershipVerificationStatus,
+    NotificationDeliveryStatus,
 )
 
 
@@ -107,6 +111,64 @@ class OrganizationRequestResponse(BaseModel):
         return reviewer.full_name if reviewer is not None else None
 
 
+class OrganizationMembershipPolicy(BaseModel):
+    membership_requires_approval: bool = True
+    membership_requires_invitation: bool = False
+    verification_mode: MembershipVerificationMode = MembershipVerificationMode.NONE
+    verified_email_domains: list[str] = Field(default_factory=list)
+    verification_instructions: str | None = None
+
+
+class OrganizationProfileUpdate(OrganizationDetailsInput):
+    is_public_profile: bool = True
+
+
+class OrganizationMembershipPolicyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    membership_requires_approval: bool
+    membership_requires_invitation: bool
+    verification_mode: MembershipVerificationMode
+    verified_email_domains: list[str] = Field(default_factory=list, max_length=20)
+    verification_instructions: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("verified_email_domains")
+    @classmethod
+    def normalize_email_domains(cls, values: list[str]) -> list[str]:
+        normalized_domains: list[str] = []
+        for value in values:
+            domain = value.strip().lower().rstrip(".")
+            if not domain or "@" in domain or not re.fullmatch(
+                r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}",
+                domain,
+            ):
+                raise ValueError("Enter email domains such as university.edu, without @.")
+            if domain not in normalized_domains:
+                normalized_domains.append(domain)
+        return normalized_domains
+
+    @field_validator("verification_instructions")
+    @classmethod
+    def normalize_verification_instructions(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+    @model_validator(mode="after")
+    def validate_verification_configuration(self) -> "OrganizationMembershipPolicyUpdate":
+        if self.verification_mode == MembershipVerificationMode.INSTITUTIONAL_EMAIL:
+            if not self.verified_email_domains:
+                raise ValueError("Add at least one approved domain for institutional email verification.")
+            if self.verification_instructions is not None:
+                raise ValueError("Email-domain verification cannot include manual-review instructions.")
+        elif self.verification_mode == MembershipVerificationMode.ADMIN_REVIEW:
+            if self.verified_email_domains:
+                raise ValueError("Email domains are only valid for institutional email verification.")
+            if not self.verification_instructions:
+                raise ValueError("Explain how administrators will verify membership.")
+        elif self.verified_email_domains or self.verification_instructions is not None:
+            raise ValueError("Verification details require a verification method.")
+        return self
+
+
 class OrganizationResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -117,6 +179,7 @@ class OrganizationResponse(BaseModel):
     contact_email: str | None
     contact_phone: str | None = None
     website: str | None
+    is_public_profile: bool = True
     country: str
     status: OrganizationStatus
     created_by: uuid.UUID
@@ -127,6 +190,9 @@ class OrganizationResponse(BaseModel):
     current_owner_id: uuid.UUID | None = None
     current_owner_name: str | None = None
     management_arrangement: str | None = None
+    membership_policy: OrganizationMembershipPolicy = Field(
+        default_factory=OrganizationMembershipPolicy
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -162,6 +228,13 @@ class OrganizationResponse(BaseModel):
             data["management_arrangement"] = "HAND_OVER"
         else:
             data["management_arrangement"] = "AWAITING_OWNER"
+        data["membership_policy"] = {
+            "membership_requires_approval": value.membership_requires_approval,
+            "membership_requires_invitation": value.membership_requires_invitation,
+            "verification_mode": value.membership_verification_mode,
+            "verified_email_domains": value.membership_verified_email_domains,
+            "verification_instructions": value.membership_verification_instructions,
+        }
         return data
 
 
@@ -252,10 +325,16 @@ class MembershipRequestCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str | None = Field(default=None, max_length=2000)
+    verification_note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("message")
     @classmethod
     def normalize_message(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+    @field_validator("verification_note")
+    @classmethod
+    def normalize_verification_note(cls, value: str | None) -> str | None:
         return value.strip() or None if value is not None else None
 
 
@@ -286,6 +365,7 @@ class MembershipRequestResponse(BaseModel):
     updated_at: datetime
     applicant_name: str | None = None
     applicant_email: str | None = None
+    notification_delivery: NotificationDeliveryStatus | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -317,4 +397,111 @@ class MembershipStatusResponse(BaseModel):
     organization_id: uuid.UUID
     membership_status: MembershipStatus | None
     membership_request_status: MembershipRequestStatus | None
+    membership_verification_status: MembershipVerificationStatus | None = None
     can_manage: bool = False
+
+
+class MembershipJoinResponse(BaseModel):
+    status: str
+    membership_id: uuid.UUID | None = None
+    membership_request_id: uuid.UUID | None = None
+    verification_id: uuid.UUID | None = None
+    notification_delivery: NotificationDeliveryStatus | None = None
+
+
+class MembershipVerificationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("note")
+    @classmethod
+    def normalize_note(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+
+class MembershipVerificationReject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=2, max_length=2000)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 2:
+            raise ValueError("A rejection reason is required.")
+        return normalized
+
+
+class MembershipVerificationResponse(BaseModel):
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    user_id: uuid.UUID
+    membership_request_id: uuid.UUID | None
+    invitation_id: uuid.UUID | None
+    verification_mode: MembershipVerificationMode
+    status: MembershipVerificationStatus
+    membership_requires_approval: bool
+    submission_note: str | None
+    rejection_reason: str | None
+    reviewed_by: uuid.UUID | None
+    reviewed_at: datetime | None
+    created_at: datetime
+    applicant_name: str | None = None
+    applicant_email: str | None = None
+    notification_delivery: NotificationDeliveryStatus | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MembershipVerificationList(BaseModel):
+    items: list[MembershipVerificationResponse]
+
+
+class OrganizationInvitationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    expires_in_days: int = Field(default=7, ge=1, le=30)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
+            raise ValueError("Enter a valid email address.")
+        return normalized
+
+
+class OrganizationInvitationResponse(BaseModel):
+    id: uuid.UUID
+    organization_id: uuid.UUID
+    email: str
+    status: OrganizationInvitationStatus
+    expires_at: datetime
+    invited_by: uuid.UUID | None
+    accepted_by: uuid.UUID | None
+    accepted_at: datetime | None
+    revoked_at: datetime | None
+    created_at: datetime
+    invitation_url: str | None = None
+    notification_delivery: NotificationDeliveryStatus | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrganizationInvitationList(BaseModel):
+    items: list[OrganizationInvitationResponse]
+
+
+class OrganizationInvitationAccept(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=32, max_length=200)
+    verification_note: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("verification_note")
+    @classmethod
+    def normalize_verification_note(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None

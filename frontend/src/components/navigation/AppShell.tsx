@@ -30,6 +30,7 @@ import {
 import { cn } from "../../lib/cn";
 import { useAuth } from "../../features/auth/hooks/useAuth";
 import { useUserProfile } from "../../features/auth/hooks/useUserProfile";
+import { NotificationBell } from "../../features/notifications/NotificationBell";
 
 interface NavItem {
   label: string;
@@ -225,6 +226,7 @@ export function AppShell() {
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </Link>
+            <NotificationBell />
 
             {/* Account Menu */}
             <DropdownMenu>

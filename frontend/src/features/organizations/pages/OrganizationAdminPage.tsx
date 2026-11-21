@@ -10,6 +10,10 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
+  LayoutDashboard,
+  Settings,
+  UsersRound,
+  ClipboardList,
 } from "lucide-react";
 
 import {
@@ -21,7 +25,9 @@ import {
   useCreateOrganizationDirectly,
   useSuspendOrganization,
   useRestoreOrganization,
+  usePlatformOverview,
 } from "../hooks/useOrganizations";
+import { PlatformAdminTools, type PlatformAdminSection } from "./PlatformAdminTools";
 import {
   organizationDirectCreateSchema,
   rejectRequestSchema,
@@ -55,9 +61,11 @@ import {
 import type { OrganizationRequestResponse } from "../types/organization";
 import { useUserProfile } from "../../auth/hooks/useUserProfile";
 
+type AdminTab = "overview" | "directory" | "requests" | "users" | "audit" | "settings" | "create";
+
 export function OrganizationAdminPage() {
   const { data: profile, isLoading: profileLoading } = useUserProfile();
-  const [activeTab, setActiveTab] = useState<"directory" | "requests" | "create">("directory");
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [requestFilter, setRequestFilter] = useState<string>("PENDING_APPROVAL");
   const [ownerSearch, setOwnerSearch] = useState("");
@@ -66,12 +74,20 @@ export function OrganizationAdminPage() {
   const {
     data: orgsData,
     isLoading: orgsLoading,
+    error: orgsError,
     refetch: refetchOrgs,
   } = useAdminOrganizations(statusFilter || undefined);
+  const {
+    data: overviewData,
+    isLoading: overviewLoading,
+    error: overviewError,
+    refetch: refetchOverview,
+  } = usePlatformOverview();
 
   const {
     data: requestsData,
     isLoading: requestsLoading,
+    error: requestsError,
     refetch: refetchRequests,
   } = useAdminOrganizationRequests(requestFilter || undefined);
 
@@ -79,8 +95,8 @@ export function OrganizationAdminPage() {
   const { mutateAsync: approveRequest, isPending: isApproving } = useApproveOrganizationRequest();
   const { mutateAsync: rejectRequest, isPending: isRejecting } = useRejectOrganizationRequest();
   const { mutateAsync: createDirectly, isPending: isCreating } = useCreateOrganizationDirectly();
-  const { mutateAsync: suspendOrg } = useSuspendOrganization();
-  const { mutateAsync: restoreOrg } = useRestoreOrganization();
+  const { mutateAsync: suspendOrg, isPending: isSuspending } = useSuspendOrganization();
+  const { mutateAsync: restoreOrg, isPending: isRestoring } = useRestoreOrganization();
 
   // Modals state
   const [selectedRequest, setSelectedRequest] = useState<OrganizationRequestResponse | null>(null);
@@ -129,13 +145,14 @@ export function OrganizationAdminPage() {
   });
 
   const selectedManagementMode = watchCreate("management_mode");
-  const { data: ownerUsers } = useAdminUsers(ownerSearch);
+  const { data: ownerUsers, error: ownerUsersError, isLoading: ownerUsersLoading } =
+    useAdminUsers(ownerSearch);
 
   // Metrics computation from real backend responses
-  const totalOrgs = orgsData?.items.length ?? 0;
-  const activeOrgs = orgsData?.items.filter((o) => o.status === "ACTIVE").length ?? 0;
-  const suspendedOrgs = orgsData?.items.filter((o) => o.status === "SUSPENDED").length ?? 0;
-  const pendingRequests = requestsData?.items.filter((r) => r.status === "PENDING_APPROVAL").length ?? 0;
+  const totalOrgs = overviewData?.total_organizations ?? 0;
+  const activeOrgs = overviewData?.active_organizations ?? 0;
+  const suspendedOrgs = overviewData?.suspended_organizations ?? 0;
+  const pendingRequests = overviewData?.pending_requests ?? 0;
 
   const onConfirmApprove = async () => {
     if (!selectedRequest) return;
@@ -171,6 +188,34 @@ export function OrganizationAdminPage() {
   const onSubmitDirectCreate = async (values: OrganizationDirectCreateFormValues) => {
     setPendingCreateValues(values);
     setCreateConfirmOpen(true);
+  };
+
+  const onChangeOrganizationStatus = async (
+    organizationId: string,
+    organizationName: string,
+    action: "suspend" | "restore",
+  ) => {
+    const confirmed = window.confirm(
+      action === "suspend"
+        ? `Suspend ${organizationName}?`
+        : `Restore ${organizationName}?`,
+    );
+    if (!confirmed) return;
+    setActionError(null);
+    try {
+      if (action === "suspend") {
+        await suspendOrg(organizationId);
+      } else {
+        await restoreOrg(organizationId);
+      }
+      await Promise.all([refetchOrgs(), refetchOverview()]);
+    } catch (err) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : `Could not ${action} ${organizationName}.`,
+      );
+    }
   };
 
   const confirmDirectCreate = async () => {
@@ -283,42 +328,117 @@ export function OrganizationAdminPage() {
           {actionError}
         </Notice>
       )}
+      {overviewError && (
+        <Notice variant="error" className="my-2">
+          {overviewError instanceof Error ? overviewError.message : "Could not load platform totals."}
+        </Notice>
+      )}
 
-      {/* Tabs navigation */}
-      <div className="flex border-b border-border/80">
-        <button
-          onClick={() => setActiveTab("directory")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === "directory"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Organisation Directory ({totalOrgs})
-        </button>
-        <button
-          onClick={() => setActiveTab("requests")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === "requests"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Review Requests ({requestsData?.items.length ?? 0})
-        </button>
-        <button
-          onClick={() => setActiveTab("create")}
-          className={`px-4 py-2 text-xs font-semibold border-b-2 transition-colors ${
-            activeTab === "create"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Direct Creation
-        </button>
+      <div
+        role="tablist"
+        aria-label="Platform administration"
+        className="flex gap-1 overflow-x-auto border-b border-border/80"
+      >
+        {([
+          { id: "overview", label: "Overview", icon: LayoutDashboard },
+          { id: "directory", label: "Organisations", icon: Building2, count: totalOrgs },
+          { id: "requests", label: "Requests", icon: FileCheck2, count: pendingRequests },
+          { id: "users", label: "Users & access", icon: UsersRound },
+          { id: "audit", label: "Audit log", icon: ClipboardList },
+          { id: "settings", label: "Settings", icon: Settings },
+          { id: "create", label: "Create organisation", icon: CheckCircle2 },
+        ] as { id: AdminTab; label: string; icon: typeof LayoutDashboard; count?: number }[]).map(({ id, label, icon: Icon, count }) => (
+          <button
+            key={id}
+            id={`admin-tab-${id}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            aria-controls="admin-tab-panel"
+            onClick={() => setActiveTab(id)}
+            className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-semibold transition-colors ${
+              activeTab === id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            {label}
+            {count !== undefined && (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
+                {count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* 1. Directory Tab */}
+      <div
+        id="admin-tab-panel"
+        role="tabpanel"
+        aria-labelledby={`admin-tab-${activeTab}`}
+        className="min-w-0"
+      >
+      {activeTab === "overview" && (
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Platform overview</CardTitle>
+              <CardDescription>
+                A snapshot of platform activity and the tasks that need attention.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["Registered users", overviewData?.total_users],
+                  ["Organisations", overviewData?.total_organizations],
+                  ["Active organisations", overviewData?.active_organizations],
+                  ["Suspended organisations", overviewData?.suspended_organizations],
+                ].map(([label, count]) => (
+                  <div key={label} className="rounded-md border border-border p-3">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="mt-1 text-2xl font-semibold">
+                      {count ?? (overviewLoading ? "—" : 0)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void refetchOverview()}
+              >
+                Refresh overview
+              </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick actions</CardTitle>
+              <CardDescription>Jump directly to common administration tasks.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setActiveTab("requests")}>
+                Review organisation requests
+                <Badge variant={pendingRequests ? "warning" : "secondary"}>{pendingRequests} pending</Badge>
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setActiveTab("directory")}>
+                <Building2 className="h-4 w-4" /> Browse organisation directory
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setActiveTab("users")}>
+                <UsersRound className="h-4 w-4" /> Manage users and roles
+              </Button>
+              <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setActiveTab("create")}>
+                Create an organisation directly
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {activeTab === "directory" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4">
@@ -334,6 +454,7 @@ export function OrganizationAdminPage() {
                 <option value="SUSPENDED">SUSPENDED</option>
                 <option value="PENDING_APPROVAL">PENDING_APPROVAL</option>
                 <option value="REJECTED">REJECTED</option>
+                <option value="ARCHIVED">ARCHIVED</option>
               </select>
             </div>
             <Button size="sm" variant="outline" className="text-xs" onClick={() => void refetchOrgs()}>
@@ -342,8 +463,13 @@ export function OrganizationAdminPage() {
           </div>
 
           {orgsLoading && <LoadingState label="Loading directory…" />}
+          {orgsError && (
+            <Notice variant="error">
+              {orgsError instanceof Error ? orgsError.message : "Could not load organisations."}
+            </Notice>
+          )}
 
-          {!orgsLoading && (orgsData?.items.length ?? 0) === 0 && (
+          {!orgsLoading && !orgsError && (orgsData?.items.length ?? 0) === 0 && (
             <EmptyState
               icon={<Building2 className="h-6 w-6" />}
               title="No organisations found"
@@ -407,14 +533,10 @@ export function OrganizationAdminPage() {
                             size="sm"
                             variant="destructive"
                             className="h-7 text-xs"
-                            onClick={async () => {
-                              if (confirm(`Suspend ${org.name}?`)) {
-                                await suspendOrg(org.id);
-                                void refetchOrgs();
-                              }
-                            }}
+                            disabled={isSuspending || isRestoring}
+                            onClick={() => void onChangeOrganizationStatus(org.id, org.name, "suspend")}
                           >
-                            Suspend
+                            {isSuspending ? "Suspending…" : "Suspend"}
                           </Button>
                         )}
                         {org.status === "SUSPENDED" && (
@@ -422,14 +544,10 @@ export function OrganizationAdminPage() {
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs border-emerald-600 text-emerald-700"
-                            onClick={async () => {
-                              if (confirm(`Restore ${org.name}?`)) {
-                                await restoreOrg(org.id);
-                                void refetchOrgs();
-                              }
-                            }}
+                            disabled={isSuspending || isRestoring}
+                            onClick={() => void onChangeOrganizationStatus(org.id, org.name, "restore")}
                           >
-                            Restore
+                            {isRestoring ? "Restoring…" : "Restore"}
                           </Button>
                         )}
                       </TableCell>
@@ -464,8 +582,13 @@ export function OrganizationAdminPage() {
           </div>
 
           {requestsLoading && <LoadingState label="Loading requests…" />}
+          {requestsError && (
+            <Notice variant="error">
+              {requestsError instanceof Error ? requestsError.message : "Could not load requests."}
+            </Notice>
+          )}
 
-          {!requestsLoading && (requestsData?.items.length ?? 0) === 0 && (
+          {!requestsLoading && !requestsError && (requestsData?.items.length ?? 0) === 0 && (
             <EmptyState
               icon={<FileCheck2 className="h-6 w-6" />}
               title="No requests pending"
@@ -735,11 +858,25 @@ export function OrganizationAdminPage() {
                       Search registered UniVote user <span className="text-destructive">*</span>
                     </label>
                     <Input
+                      aria-label="Search registered UniVote users"
                       placeholder="Search by name or email"
                       error={Boolean(createErrors.manager_user_id)}
                       value={ownerSearch}
-                      onChange={(event) => setOwnerSearch(event.target.value)}
+                      onChange={(event) => {
+                        setOwnerSearch(event.target.value);
+                        setCreateValue("manager_user_id", "", { shouldValidate: true });
+                      }}
                     />
+                    {ownerUsersError && (
+                      <Notice variant="error">
+                        {ownerUsersError instanceof Error
+                          ? ownerUsersError.message
+                          : "Could not search users."}
+                      </Notice>
+                    )}
+                    {ownerUsersLoading && (
+                      <p className="text-[11px] text-muted-foreground">Searching users…</p>
+                    )}
                     {ownerUsers?.items.length ? (
                       <div className="max-h-40 overflow-y-auto rounded-md border border-border bg-card">
                         {ownerUsers.items.map((owner) => (
@@ -749,7 +886,7 @@ export function OrganizationAdminPage() {
                             className="flex w-full items-center justify-between border-b border-border/60 px-3 py-2 text-left last:border-0 hover:bg-muted"
                             onClick={() => {
                               setCreateValue("manager_user_id", owner.id, { shouldValidate: true });
-                              setOwnerSearch(`${owner.full_name} — ${owner.email}`);
+                              setOwnerSearch(owner.email);
                             }}
                           >
                             <span>
@@ -907,6 +1044,10 @@ export function OrganizationAdminPage() {
           </form>
         </DialogContent>
       </Dialog>
+      {(activeTab === "users" || activeTab === "audit" || activeTab === "settings") && (
+        <PlatformAdminTools section={activeTab as PlatformAdminSection} />
+      )}
+      </div>
     </div>
   );
 }

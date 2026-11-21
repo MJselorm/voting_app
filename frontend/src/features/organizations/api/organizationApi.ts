@@ -1,6 +1,8 @@
 import { apiRequest } from "../../../lib/api-client";
 import type {
   OrganizationDirectCreate,
+  OrganizationManagementAssignment,
+  OrganizationManagementUpdate,
   OrganizationList,
   OrganizationReject,
   OrganizationRequestCreate,
@@ -9,6 +11,12 @@ import type {
   OrganizationResponse,
   OrganizationStatusResponse,
   PlatformUserList,
+  PlatformOverview,
+  RoleAssignment,
+  AuditLogList,
+  PlatformSetting,
+  PlatformSettingList,
+  PlatformSettingUpdate,
   MembershipRequestCreate,
   MembershipRequestReject,
   MembershipRequestList,
@@ -16,6 +24,13 @@ import type {
   MembershipStatusResponse,
   MembershipList,
   MembershipRequestStatus,
+  MembershipJoinResponse,
+  MembershipVerification,
+  MembershipVerificationList,
+  OrganizationInvitation,
+  OrganizationInvitationList,
+  OrganizationMembershipPolicy,
+  OrganizationProfileUpdate,
 } from "../types/organization";
 
 // Public / Authenticated User Routes (/api/v1/organizations)
@@ -68,6 +83,10 @@ export function getOrganizationDetails(
   return apiRequest<OrganizationResponse>(`/api/v1/organizations/${organizationId}`);
 }
 
+export function updateOrganizationProfile(organizationId: string, data: OrganizationProfileUpdate): Promise<OrganizationResponse> {
+  return apiRequest<OrganizationResponse>(`/api/v1/organizations/${organizationId}/profile`, { method: "PUT", body: JSON.stringify(data) });
+}
+
 export function getMembershipStatus(
   organizationId: string,
 ): Promise<MembershipStatusResponse> {
@@ -83,6 +102,43 @@ export function requestOrganizationMembership(
   return apiRequest<MembershipRequestResponse>(
     `/api/v1/organizations/${organizationId}/membership-requests`,
     { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export function joinOrganization(
+  organizationId: string,
+  verificationNote?: string,
+): Promise<MembershipJoinResponse> {
+  return apiRequest<MembershipJoinResponse>(
+    `/api/v1/organizations/${organizationId}/membership/join`,
+    {
+      method: "POST",
+      body: JSON.stringify({ note: verificationNote }),
+    },
+  );
+}
+
+export function acceptOrganizationInvitation(
+  organizationId: string,
+  token: string,
+  verificationNote?: string,
+): Promise<MembershipJoinResponse> {
+  return apiRequest<MembershipJoinResponse>(
+    `/api/v1/organizations/${organizationId}/invitations/accept`,
+    {
+      method: "POST",
+      body: JSON.stringify({ token, verification_note: verificationNote }),
+    },
+  );
+}
+
+export function updateOrganizationMembershipPolicy(
+  organizationId: string,
+  policy: OrganizationMembershipPolicy,
+): Promise<OrganizationMembershipPolicy> {
+  return apiRequest<OrganizationMembershipPolicy>(
+    `/api/v1/organizations/${organizationId}/membership-policy`,
+    { method: "PUT", body: JSON.stringify(policy) },
   );
 }
 
@@ -123,6 +179,63 @@ export function rejectOrganizationMembershipRequest(
   );
 }
 
+export function createOrganizationInvitation(
+  organizationId: string,
+  email: string,
+): Promise<OrganizationInvitation> {
+  return apiRequest<OrganizationInvitation>(
+    `/api/v1/admin/organizations/${organizationId}/invitations`,
+    { method: "POST", body: JSON.stringify({ email }) },
+  );
+}
+
+export function getOrganizationInvitations(
+  organizationId: string,
+): Promise<OrganizationInvitationList> {
+  return apiRequest<OrganizationInvitationList>(
+    `/api/v1/admin/organizations/${organizationId}/invitations`,
+  );
+}
+
+export function revokeOrganizationInvitation(
+  organizationId: string,
+  invitationId: string,
+): Promise<OrganizationInvitation> {
+  return apiRequest<OrganizationInvitation>(
+    `/api/v1/admin/organizations/${organizationId}/invitations/${invitationId}/revoke`,
+    { method: "POST" },
+  );
+}
+
+export function getOrganizationMembershipVerifications(
+  organizationId: string,
+): Promise<MembershipVerificationList> {
+  return apiRequest<MembershipVerificationList>(
+    `/api/v1/admin/organizations/${organizationId}/membership-verifications`,
+  );
+}
+
+export function approveOrganizationMembershipVerification(
+  organizationId: string,
+  verificationId: string,
+): Promise<MembershipVerification> {
+  return apiRequest<MembershipVerification>(
+    `/api/v1/admin/organizations/${organizationId}/membership-verifications/${verificationId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function rejectOrganizationMembershipVerification(
+  organizationId: string,
+  verificationId: string,
+  reason: string,
+): Promise<MembershipVerification> {
+  return apiRequest<MembershipVerification>(
+    `/api/v1/admin/organizations/${organizationId}/membership-verifications/${verificationId}/reject`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
 // Platform Super Admin Routes (/api/v1/admin)
 
 export function getAdminUsers(params?: {
@@ -136,6 +249,63 @@ export function getAdminUsers(params?: {
   if (params?.limit !== undefined) query.set("limit", String(params.limit));
   const qs = query.toString() ? `?${query.toString()}` : "";
   return apiRequest<PlatformUserList>(`/api/v1/admin/users${qs}`);
+}
+
+export function getPlatformOverview(): Promise<PlatformOverview> {
+  return apiRequest<PlatformOverview>("/api/v1/admin/overview");
+}
+
+export function getPlatformAudit(params?: {
+  action?: string;
+  offset?: number;
+  limit?: number;
+}): Promise<AuditLogList> {
+  const query = new URLSearchParams();
+  if (params?.action) query.set("action", params.action);
+  if (params?.offset !== undefined) query.set("offset", String(params.offset));
+  if (params?.limit !== undefined) query.set("limit", String(params.limit));
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<AuditLogList>(`/api/v1/admin/audit${qs}`);
+}
+
+export function getPlatformUserRoles(userId: string): Promise<RoleAssignment[]> {
+  return apiRequest<RoleAssignment[]>(`/api/v1/admin/users/${userId}/roles`);
+}
+
+export function assignOrganizationAdminRole(
+  organizationId: string,
+  userId: string,
+): Promise<RoleAssignment> {
+  return apiRequest<RoleAssignment>(`/api/v1/admin/organizations/${organizationId}/roles`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId, role: "ORGANISATION_ADMIN" }),
+  });
+}
+
+export function assignPlatformSuperAdminRole(userId: string): Promise<RoleAssignment> {
+  return apiRequest<RoleAssignment>(`/api/v1/admin/users/${userId}/platform-role`, {
+    method: "POST",
+  });
+}
+
+export function revokeRoleAssignment(assignmentId: string): Promise<void> {
+  return apiRequest<void>(`/api/v1/admin/role-assignment/${assignmentId}`, {
+    method: "DELETE",
+  });
+}
+
+export function getPlatformSettings(): Promise<PlatformSettingList> {
+  return apiRequest<PlatformSettingList>("/api/v1/admin/settings");
+}
+
+export function updatePlatformSetting(
+  key: string,
+  data: PlatformSettingUpdate,
+): Promise<PlatformSetting> {
+  return apiRequest<PlatformSetting>(`/api/v1/admin/settings/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }
 
 export function getAdminOrganizations(params?: {
@@ -201,6 +371,19 @@ export function createOrganizationDirectly(
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export function updateOrganizationManagement(
+  organizationId: string,
+  data: OrganizationManagementUpdate,
+): Promise<OrganizationManagementAssignment> {
+  return apiRequest<OrganizationManagementAssignment>(
+    `/api/v1/admin/organizations/${organizationId}/management`,
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+  );
 }
 
 export function suspendOrganization(

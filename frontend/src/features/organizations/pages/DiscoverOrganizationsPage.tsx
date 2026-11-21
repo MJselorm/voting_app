@@ -197,7 +197,11 @@ export function DiscoverOrganizationsPage() {
 
               <div className="border-t border-border/60 bg-muted/20 px-5 py-2.5 flex items-center justify-between text-xs">
                 <span className="text-[11px] text-muted-foreground">
-                  Verified Directory
+                  {org.membership_policy.membership_requires_invitation
+                    ? "Invitation required"
+                    : org.membership_policy.membership_requires_approval
+                      ? "Approval required"
+                      : "Direct joining"}
                 </span>
                 <Link
                   to={`/app/organizations/${org.id}`}

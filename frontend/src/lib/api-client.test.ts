@@ -22,6 +22,14 @@ describe("API client", () => {
     await expect(apiRequest("/api/health")).resolves.toEqual({ status: "ok" });
   });
 
+  it("supports successful no-content responses", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+
+    await expect(apiRequest<void>("/api/v1/admin/role-assignment/test", {
+      method: "DELETE",
+    })).resolves.toBeUndefined();
+  });
+
   it("ends the local session on unauthorized responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
       JSON.stringify({ detail: "Invalid session." }),

@@ -13,6 +13,13 @@ class Settings:
     firebase_project_id: str
     firebase_service_account_json: str
     cors_origins: tuple[str, ...]
+    public_app_url: str
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_from: str
+    smtp_use_tls: bool
 
 
 def get_settings() -> Settings:
@@ -32,6 +39,17 @@ def get_settings() -> Settings:
             "",
         ).strip(),
         cors_origins=origins,
+        public_app_url=os.getenv(
+            "PUBLIC_APP_URL",
+            "http://localhost:5173",
+        ).strip().rstrip("/"),
+        smtp_host=os.getenv("SMTP_HOST", "").strip(),
+        smtp_port=int(os.getenv("SMTP_PORT", "587")),
+        smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
+        smtp_password=os.getenv("SMTP_PASSWORD", ""),
+        smtp_from=os.getenv("SMTP_FROM", "").strip(),
+        smtp_use_tls=os.getenv("SMTP_USE_TLS", "true").strip().lower()
+        in {"1", "true", "yes", "on"},
     )
 
 

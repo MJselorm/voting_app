@@ -53,6 +53,7 @@ const ProfilePage = lazy(() =>
     default: m.ProfilePage,
   })),
 );
+const NotificationsPage = lazy(() => import("../features/notifications/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
 
 function withSuspense(page: ReactNode) {
   return (
@@ -86,6 +87,7 @@ export function AppRoutes() {
           children: [
             { index: true, element: withSuspense(<DashboardPreviewPage />) },
             { path: "profile", element: withSuspense(<ProfilePage />) },
+            { path: "notifications", element: withSuspense(<NotificationsPage />) },
             organizationsRoute,
             electionsRoute,
             candidatesRoute,

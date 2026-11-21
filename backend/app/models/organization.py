@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Enum as SqlEnum,
     ForeignKey,
@@ -66,6 +67,33 @@ class MembershipStatus(str, Enum):
     REMOVED = "REMOVED"
 
 
+class MembershipVerificationMode(str, Enum):
+    NONE = "NONE"
+    INSTITUTIONAL_EMAIL = "INSTITUTIONAL_EMAIL"
+    ADMIN_REVIEW = "ADMIN_REVIEW"
+
+
+class MembershipVerificationStatus(str, Enum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+    CANCELLED = "CANCELLED"
+
+
+class OrganizationInvitationStatus(str, Enum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    EXPIRED = "EXPIRED"
+    REVOKED = "REVOKED"
+
+
+class NotificationDeliveryStatus(str, Enum):
+    SENT = "SENT"
+    NOT_CONFIGURED = "NOT_CONFIGURED"
+    FAILED = "FAILED"
+    NO_RECIPIENT = "NO_RECIPIENT"
+
+
 def enum_values(enum_type: type[Enum]) -> list[str]:
     return [member.value for member in enum_type]
 
@@ -101,6 +129,7 @@ class Organization(Base):
     contact_email: Mapped[str | None] = mapped_column(String(320))
     contact_phone: Mapped[str | None] = mapped_column(String(40))
     website: Mapped[str | None] = mapped_column(String(500))
+    is_public_profile: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("TRUE"))
     country: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[OrganizationStatus] = mapped_column(
         enum_column(OrganizationStatus, "organization_status"),
@@ -108,6 +137,25 @@ class Organization(Base):
         default=OrganizationStatus.ACTIVE,
         server_default=OrganizationStatus.ACTIVE.value,
     )
+    membership_requires_approval: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("TRUE")
+    )
+    membership_requires_invitation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("FALSE")
+    )
+    membership_verification_mode: Mapped[MembershipVerificationMode] = mapped_column(
+        enum_column(
+            MembershipVerificationMode,
+            "organization_membership_verification_mode",
+        ),
+        nullable=False,
+        default=MembershipVerificationMode.NONE,
+        server_default=MembershipVerificationMode.NONE.value,
+    )
+    membership_verified_email_domains: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
+    membership_verification_instructions: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
@@ -313,8 +361,13 @@ class OrganizationMembership(Base):
 class OrganizationMembershipRequest(Base):
     __tablename__ = "organization_membership_requests"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "user_id", name="uq_org_membership_request_org_user"
+        Index(
+            "uq_org_membership_request_pending",
+            "organization_id",
+            "user_id",
+            unique=True,
+            sqlite_where=text("status = 'PENDING'"),
+            postgresql_where=text("status = 'PENDING'"),
         ),
         Index("ix_org_membership_request_status", "status", "created_at"),
         Index("ix_org_membership_request_org_status", "organization_id", "status"),
@@ -340,6 +393,32 @@ class OrganizationMembershipRequest(Base):
         server_default=MembershipRequestStatus.PENDING.value,
     )
     message: Mapped[str | None] = mapped_column(Text)
+    membership_requires_approval: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("TRUE")
+    )
+    membership_requires_invitation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("FALSE")
+    )
+    verification_mode: Mapped[MembershipVerificationMode] = mapped_column(
+        enum_column(
+            MembershipVerificationMode,
+            "membership_request_verification_mode",
+        ),
+        nullable=False,
+        default=MembershipVerificationMode.NONE,
+        server_default=MembershipVerificationMode.NONE.value,
+    )
+    verified_email_domains: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
+    invitation_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "organization_invitations.id",
+            name="fk_org_membership_request_invitation",
+            ondelete="SET NULL",
+        ),
+    )
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -362,6 +441,156 @@ class OrganizationMembershipRequest(Base):
     )
     reviewer: Mapped["User | None"] = relationship(
         foreign_keys=[reviewed_by]
+    )
+
+
+class OrganizationInvitation(Base):
+    __tablename__ = "organization_invitations"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_org_invitation_token_hash"),
+        Index(
+            "uq_org_invitation_pending_email",
+            "organization_id",
+            "email",
+            unique=True,
+            sqlite_where=text("status = 'PENDING'"),
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        Index(
+            "ix_org_invitation_status_expires",
+            "organization_id",
+            "status",
+            "expires_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[OrganizationInvitationStatus] = mapped_column(
+        enum_column(OrganizationInvitationStatus, "organization_invitation_status"),
+        nullable=False,
+        default=OrganizationInvitationStatus.PENDING,
+        server_default=OrganizationInvitationStatus.PENDING.value,
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    accepted_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    membership_requires_approval: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("TRUE")
+    )
+    verification_mode: Mapped[MembershipVerificationMode] = mapped_column(
+        enum_column(
+            MembershipVerificationMode,
+            "organization_invitation_verification_mode",
+        ),
+        nullable=False,
+        default=MembershipVerificationMode.NONE,
+        server_default=MembershipVerificationMode.NONE.value,
+    )
+    verified_email_domains: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class OrganizationMembershipVerification(Base):
+    __tablename__ = "organization_membership_verifications"
+    __table_args__ = (
+        Index(
+            "uq_org_membership_verification_pending",
+            "organization_id",
+            "user_id",
+            unique=True,
+            sqlite_where=text("status = 'PENDING'"),
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        Index(
+            "ix_org_membership_verification_org_status",
+            "organization_id",
+            "status",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    membership_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("organization_membership_requests.id", ondelete="SET NULL"),
+    )
+    invitation_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("organization_invitations.id", ondelete="SET NULL"),
+    )
+    verification_mode: Mapped[MembershipVerificationMode] = mapped_column(
+        enum_column(
+            MembershipVerificationMode,
+            "organization_membership_verification_request_mode",
+        ),
+        nullable=False,
+    )
+    status: Mapped[MembershipVerificationStatus] = mapped_column(
+        enum_column(
+            MembershipVerificationStatus,
+            "organization_membership_verification_status",
+        ),
+        nullable=False,
+        default=MembershipVerificationStatus.PENDING,
+        server_default=MembershipVerificationStatus.PENDING.value,
+    )
+    membership_requires_approval: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("TRUE")
+    )
+    verified_email_domains: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
+    submission_note: Mapped[str | None] = mapped_column(Text)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
 

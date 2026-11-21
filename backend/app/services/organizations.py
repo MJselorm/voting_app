@@ -34,6 +34,7 @@ from app.schemas.organization import (
     OrganizationManagementUpdate,
     OrganizationReject,
     OrganizationRequestCreate,
+    OrganizationProfileUpdate,
 )
 
 
@@ -86,6 +87,16 @@ def _commit(db: Session) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail="An organisation with this slug or management assignment already exists.",
         ) from error
+
+
+def update_organization_profile(db: Session, organization: Organization, actor: User, data: OrganizationProfileUpdate) -> Organization:
+    if not is_organization_manager(db, organization.id, actor.id) and not actor.is_platform_super_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organisation management permission is required.")
+    for field in ("name", "description", "organization_type", "logo_url", "contact_email", "contact_phone", "website", "country", "is_public_profile"):
+        setattr(organization, field, getattr(data, field))
+    _record_audit(db, actor=actor, action="ORGANIZATION_PROFILE_UPDATED", organization=organization, details={"is_public_profile": str(data.is_public_profile)})
+    _commit(db); db.refresh(organization)
+    return organization
 
 
 def _flush(db: Session) -> None:
@@ -200,6 +211,7 @@ def list_discoverable_organizations(
         offset=offset,
         limit=limit,
     )
+    organizations = [item for item in organizations if item.is_public_profile]
     if organization_type is None:
         return organizations
     return [item for item in organizations if item.organization_type.value == organization_type]

@@ -1,5 +1,7 @@
 import uuid
 import time
+from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -9,6 +11,7 @@ from app.database.session import get_db
 from app.models.organization import (
     Organization,
     OrganizationAuditLog,
+    OrganizationInvitation,
     OrganizationManagementAssignment,
     OrganizationManagementRole,
     OrganizationRequest,
@@ -17,6 +20,7 @@ from app.models.organization import (
     OrganizationMembershipRequest,
     MembershipRequestStatus,
     MembershipStatus,
+    MembershipVerificationStatus,
 )
 from app.auth.permissions import AssignmentStatus, OrganizationRole
 from app.models.rbac import OrganizationRoleAssignment
@@ -671,6 +675,14 @@ def test_rejection_preserves_reason_and_unrelated_admin_cannot_review(client):
     assert rejected.json()["reviewed_by"] is not None
     assert rejected.json()["reviewed_at"] is not None
 
+    use_identity(client, applicant_claims_value)
+    retried = client.post(
+        f"/api/v1/organizations/{organization_id}/membership-requests",
+        json={"message": "I would like to try again."},
+    )
+    assert retried.status_code == 200
+    assert retried.json()["id"] != request.json()["id"]
+
 
 def test_legacy_creator_owner_assignment_can_review_membership_requests(client):
     applicant_claims_value = {
@@ -711,3 +723,307 @@ def test_legacy_creator_owner_assignment_can_review_membership_requests(client):
     assert pending_item["applicant_email"] == "creator-review-applicant@example.com"
     assert approved.status_code == 200
     assert approved.json()["status"] == "APPROVED"
+
+
+def create_owner_managed_organization(client: TestClient) -> tuple[dict, dict, str]:
+    owner = sync_identity(client, owner_claims())
+    promote_to_platform_admin(client, admin_claims())
+    use_identity(client, admin_claims())
+    created = make_direct_organization(
+        client,
+        management_mode="ASSIGN_OWNER",
+        manager_user_id=owner["id"],
+    )
+    assert created.status_code == 201
+    use_identity(client, owner_claims())
+    return owner, admin_claims(), created.json()["id"]
+
+
+def test_membership_policy_requires_org_admin_and_allows_direct_join_when_configured(client):
+    _owner, platform_admin, organization_id = create_owner_managed_organization(client)
+    policy = {
+        "membership_requires_approval": False,
+        "membership_requires_invitation": False,
+        "verification_mode": "NONE",
+        "verified_email_domains": [],
+        "verification_instructions": None,
+    }
+
+    use_identity(client, platform_admin)
+    forbidden = client.put(
+        f"/api/v1/organizations/{organization_id}/membership-policy",
+        json=policy,
+    )
+    assert forbidden.status_code == 403
+
+    use_identity(client, owner_claims())
+    updated = client.put(
+        f"/api/v1/organizations/{organization_id}/membership-policy",
+        json=policy,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["membership_requires_approval"] is False
+
+    applicant_claims_value = {
+        **VALID_CLAIMS,
+        "uid": "direct-join-applicant",
+        "email": "direct-join@example.com",
+        "name": "Direct Join Applicant",
+    }
+    sync_identity(client, applicant_claims_value)
+    joined = client.post(
+        f"/api/v1/organizations/{organization_id}/membership/join",
+        json={},
+    )
+
+    assert joined.status_code == 200
+    assert joined.json()["status"] == "ACTIVE"
+    assert client.get(
+        f"/api/v1/organizations/{organization_id}/membership/status"
+    ).json()["membership_status"] == "ACTIVE"
+
+
+def test_institutional_email_verification_requires_verified_matching_domain(client):
+    _owner, _platform_admin, organization_id = create_owner_managed_organization(client)
+    updated = client.put(
+        f"/api/v1/organizations/{organization_id}/membership-policy",
+        json={
+            "membership_requires_approval": True,
+            "membership_requires_invitation": False,
+            "verification_mode": "INSTITUTIONAL_EMAIL",
+            "verified_email_domains": ["university.edu"],
+            "verification_instructions": None,
+        },
+    )
+    assert updated.status_code == 200
+
+    other_claims = {
+        **VALID_CLAIMS,
+        "uid": "non-institutional-applicant",
+        "email": "applicant@example.com",
+        "name": "Applicant",
+    }
+    sync_identity(client, other_claims)
+    denied = client.post(
+        f"/api/v1/organizations/{organization_id}/membership-requests",
+        json={},
+    )
+    assert denied.status_code == 403
+
+    institutional_claims = {
+        **VALID_CLAIMS,
+        "uid": "institutional-applicant",
+        "email": "applicant@university.edu",
+        "name": "Institutional Applicant",
+    }
+    sync_identity(client, institutional_claims)
+    request = client.post(
+        f"/api/v1/organizations/{organization_id}/membership-requests",
+        json={},
+    )
+    assert request.status_code == 200
+    assert client.get(
+        f"/api/v1/organizations/{organization_id}/membership/status"
+    ).json()["membership_verification_status"] == "VERIFIED"
+
+    use_identity(client, owner_claims())
+    approved = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/membership-requests/"
+        f"{request.json()['id']}/approve"
+    )
+    assert approved.status_code == 200
+
+
+def test_invitation_is_email_bound_and_stores_only_token_hash(client):
+    _owner, _platform_admin, organization_id = create_owner_managed_organization(client)
+    policy = {
+        "membership_requires_approval": True,
+        "membership_requires_invitation": True,
+        "verification_mode": "NONE",
+        "verified_email_domains": [],
+        "verification_instructions": None,
+    }
+    assert client.put(
+        f"/api/v1/organizations/{organization_id}/membership-policy",
+        json=policy,
+    ).status_code == 200
+
+    invited_email = "invited-member@example.com"
+    issued = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/invitations",
+        json={"email": invited_email},
+    )
+    assert issued.status_code == 201
+    assert issued.json()["notification_delivery"] == "NOT_CONFIGURED"
+    token = parse_qs(urlparse(issued.json()["invitation_url"]).query)["invitation_token"][0]
+
+    stored = read_db_rows(
+        client,
+        select(OrganizationInvitation).where(
+            OrganizationInvitation.id == uuid.UUID(issued.json()["id"])
+        ),
+    )[0]
+    assert stored.token_hash != token
+
+    wrong_user_claims = {
+        **VALID_CLAIMS,
+        "uid": "wrong-invitation-user",
+        "email": "wrong-user@example.com",
+        "name": "Wrong User",
+    }
+    sync_identity(client, wrong_user_claims)
+    denied = client.post(
+        f"/api/v1/organizations/{organization_id}/invitations/accept",
+        json={"token": token},
+    )
+    assert denied.status_code == 403
+
+    invited_claims = {
+        **VALID_CLAIMS,
+        "uid": "invited-user",
+        "email": invited_email,
+        "name": "Invited User",
+    }
+    sync_identity(client, invited_claims)
+    accepted = client.post(
+        f"/api/v1/organizations/{organization_id}/invitations/accept",
+        json={"token": token},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "PENDING_APPROVAL"
+
+    use_identity(client, owner_claims())
+    approved = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/membership-requests/"
+        f"{accepted.json()['membership_request_id']}/approve"
+    )
+    assert approved.status_code == 200
+
+
+def test_manual_verification_activates_direct_join_only_after_org_admin_review(client):
+    _owner, _platform_admin, organization_id = create_owner_managed_organization(client)
+    policy = {
+        "membership_requires_approval": False,
+        "membership_requires_invitation": False,
+        "verification_mode": "ADMIN_REVIEW",
+        "verified_email_domains": [],
+        "verification_instructions": "Provide your department and role.",
+    }
+    assert client.put(
+        f"/api/v1/organizations/{organization_id}/membership-policy",
+        json=policy,
+    ).status_code == 200
+
+    applicant_claims = {
+        **VALID_CLAIMS,
+        "uid": "manual-verification-applicant",
+        "email": "manual-review@example.com",
+        "name": "Manual Review Applicant",
+    }
+    sync_identity(client, applicant_claims)
+    submitted = client.post(
+        f"/api/v1/organizations/{organization_id}/membership/join",
+        json={"note": "Department of Biology, researcher."},
+    )
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "PENDING_VERIFICATION"
+
+    use_identity(client, owner_claims())
+    verifications = client.get(
+        f"/api/v1/admin/organizations/{organization_id}/membership-verifications"
+    )
+    assert verifications.status_code == 200
+    verification_id = verifications.json()["items"][0]["id"]
+
+    approved = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/membership-verifications/"
+        f"{verification_id}/approve"
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == MembershipVerificationStatus.VERIFIED.value
+
+    use_identity(client, applicant_claims)
+    assert client.get(
+        f"/api/v1/organizations/{organization_id}/membership/status"
+    ).json()["membership_status"] == "ACTIVE"
+
+
+def test_invitation_expiry_and_revocation_are_reported_and_enforced(client):
+    _owner, _platform_admin, organization_id = create_owner_managed_organization(client)
+    policy = {
+        "membership_requires_approval": False,
+        "membership_requires_invitation": True,
+        "verification_mode": "NONE",
+        "verified_email_domains": [],
+        "verification_instructions": None,
+    }
+    assert client.put(
+        f"/api/v1/organizations/{organization_id}/membership-policy",
+        json=policy,
+    ).status_code == 200
+
+    revoked_invite = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/invitations",
+        json={"email": "revoked@example.com"},
+    )
+    revoked = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/invitations/"
+        f"{revoked_invite.json()['id']}/revoke"
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "REVOKED"
+
+    expiring_invite = client.post(
+        f"/api/v1/admin/organizations/{organization_id}/invitations",
+        json={"email": "expired@example.com"},
+    )
+    db_generator = client.app.dependency_overrides[get_db]()
+    db = next(db_generator)
+    invitation = db.get(OrganizationInvitation, uuid.UUID(expiring_invite.json()["id"]))
+    assert invitation is not None
+    invitation.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+    db.commit()
+    db.close()
+    db_generator.close()
+
+    listed = client.get(
+        f"/api/v1/admin/organizations/{organization_id}/invitations"
+    )
+    expired = next(
+        item for item in listed.json()["items"]
+        if item["id"] == expiring_invite.json()["id"]
+    )
+    assert expired["status"] == "EXPIRED"
+    assert expired["notification_delivery"] == "NOT_CONFIGURED"
+
+    expired_user = {
+        **VALID_CLAIMS,
+        "uid": "expired-invite-user",
+        "email": "expired@example.com",
+        "name": "Expired Invite User",
+    }
+    sync_identity(client, expired_user)
+    token = parse_qs(
+        urlparse(expiring_invite.json()["invitation_url"]).query
+    )["invitation_token"][0]
+    acceptance = client.post(
+        f"/api/v1/organizations/{organization_id}/invitations/accept",
+        json={"token": token},
+    )
+    assert acceptance.status_code == 410
+
+
+def test_owner_can_update_profile_and_make_organization_private(client):
+    owner = sync_identity(client, owner_claims())
+    promote_to_platform_admin(client, admin_claims())
+    created = make_direct_organization(client, management_mode="ASSIGN_OWNER", manager_user_id=owner["id"])
+    organization_id = created.json()["id"]
+    use_identity(client, owner_claims())
+    updated = client.put(
+        f"/api/v1/organizations/{organization_id}/profile",
+        json={**ORG_FIELDS, "name": "Private North Coast University", "description": "Private profile", "logo_url": "https://example.com/logo.png", "contact_email": "contact@example.com", "contact_phone": "+233000000000", "website": "https://example.com", "is_public_profile": False},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["is_public_profile"] is False
+    assert updated.json()["name"] == "Private North Coast University"
+    assert organization_id not in [item["id"] for item in client.get("/api/v1/organizations").json()["items"]]
